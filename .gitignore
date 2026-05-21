@@ -1,0 +1,40 @@
+# ====================================================================
+# 1. DOCKER & MARIADB
+# ====================================================================
+# Mengabaikan folder data asli database agar tidak masuk ke Git
+backend_docker/mariadb_data/
+
+# Mengabaikan file konfigurasi password/kredensial rahasia (jika ada)
+backend_docker/.env
+
+
+# ====================================================================
+# 2. FLUTTER (wisata_app)
+# ====================================================================
+# Mengabaikan folder hasil compile/build APK yang sangat berat
+wisata_app/build/
+
+# Mengabaikan folder cache internal Flutter dan Dart
+wisata_app/.dart_tool/
+wisata_app/.pub-cache/
+wisata_app/.pub/
+
+# Mengabaikan file log eror internal Flutter
+wisata_app/*.log
+wisata_app/.flavor
+
+
+# ====================================================================
+# 3. ARDUINO PLATFORMIO (scanner_TA)
+# ====================================================================
+# Mengabaikan folder library otomatis dan hasil compile microcontroller
+scanner_TA/.pio/
+
+
+# ====================================================================
+# 4. EDITOR & SISTEM OPERASI (Umum)
+# ====================================================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
