@@ -46,3 +46,4 @@ app.*.map.json
 
 # Rahasia Firebase
 google-services.json
+secrets.json

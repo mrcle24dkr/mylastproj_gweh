@@ -18,15 +18,15 @@ class _MapPageState extends State<MapPage> {
   String _statusGeofence = "-";
   double _jarakMeter = 0;
 
-  final double latPos = -7.70215;
-  final double lonPos = 110.60012;
+  final double latPos = -7.74664;
+  final double lonPos = 110.35546;
   final double radiusAman = 50.0;
 
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
   
   // Kontroler untuk menggerakkan kamera peta
   final MapController _mapController = MapController();
-  LatLng _posisiPeserta = const LatLng(-7.70215, 110.60012);
+  LatLng _posisiPeserta = const LatLng(-7.74664, 110.35546);
   bool _lokasiDitemukan = false;
 
   @override

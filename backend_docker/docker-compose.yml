@@ -1,17 +1,16 @@
 version: '3'
 services:
-  mariadb:
-    image: mariadb:latest
+  postgres:
+    image: postgres:latest
     ports:
-      - "3306:3306"
+      - "5432:5432"
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword_rahasia
-      MYSQL_DATABASE: db_iot
-      MYSQL_USER: admin_iot
-      MYSQL_PASSWORD: password_rahasia
+      POSTGRES_USER: admin_wisata
+      POSTGRES_PASSWORD: empirise
+      POSTGRES_DB: db_data_peserta
     volumes:
-      - mariadb_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     restart: always
 
 volumes:
-  mariadb_data:
+  postgres_data:

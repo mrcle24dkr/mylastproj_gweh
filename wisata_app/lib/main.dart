@@ -8,8 +8,28 @@ void main() async {
   // Wajib dipanggil sebelum inisialisasi Firebase
   WidgetsFlutterBinding.ensureInitialized(); 
   
+  const String apiKey = String.fromEnvironment('FIREBASE_API_KEY');
+  const String authDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
+  const String databaseURL = String.fromEnvironment('FIREBASE_DATABASE_URL');
+  const String projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
+  const String storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
+  const String messagingSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
+  const String appId = String.fromEnvironment('FIREBASE_APP_ID');
+  const String measurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
+
   // Menyalakan koneksi ke Firebase
-  await Firebase.initializeApp(); 
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: apiKey,
+      authDomain: authDomain,
+      databaseURL: databaseURL,
+      projectId: projectId,
+      storageBucket: storageBucket,
+      messagingSenderId: messagingSenderId,
+      appId: appId,
+      measurementId: measurementId,
+    )
+  ); 
   
   runApp(const WisataApp());
 }
