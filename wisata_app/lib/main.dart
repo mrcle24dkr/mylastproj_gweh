@@ -60,7 +60,7 @@ class MainNavigator extends StatefulWidget {
 
 class _MainNavigatorState extends State<MainNavigator> {
   int _selectedIndex = 0;
-  final String idPeserta = "EMP-01"; 
+  final String idPeserta = "EMP-VA01-038"; 
 
   late final List<Widget> _pages = [
     QrPage(idPeserta: idPeserta),

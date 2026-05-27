@@ -1,26 +1,28 @@
-// Lokasi File: lib/services/totp_service.dart
 import 'package:otp/otp.dart';
 
 class TotpService {
-  // Secret Key ini HARUS SAMA dengan hmackey di kode C++ ESP32 Anda!
-  static const String secretKeyBase32 = "JBSWY3DPEHPK3PXP"; 
-
-  static String generateCurrentOTP() {
-    // Ambil waktu saat ini dalam format milidetik (Epoch time)
+  // 1. Tambahkan parameter (String dynamicSecretKey) di sini
+  static String generateCurrentOTP(String dynamicSecretKey) {
+    if (dynamicSecretKey.isEmpty) return "";
+    
     final int currentTime = DateTime.now().millisecondsSinceEpoch;
     
-    // Generate TOTP (Algoritma SHA1, 6 digit, interval 30 detik)
     return OTP.generateTOTPCodeString(
-      secretKeyBase32, 
+      dynamicSecretKey, 
       currentTime, 
       algorithm: Algorithm.SHA1,
       interval: 30,
-      length: 6
+      length: 6,
+      isGoogle: true 
     );
   }
   
-  static String generatePayloadQR(String idPeserta) {
-    String kodeAktual = generateCurrentOTP();
-    return "$idPeserta:$kodeAktual";
+  // 2. Tambahkan parameter (String dynamicSecretKey) juga di sini
+  static String generatePayloadQR(String idPeserta, String dynamicSecretKey) {
+    // Lempar kuncinya ke fungsi di atas
+    String kodeAktual = generateCurrentOTP(dynamicSecretKey);
+    if (kodeAktual.isEmpty) return "";
+    
+    return "$idPeserta:$kodeAktual"; 
   }
 }
