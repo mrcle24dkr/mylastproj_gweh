@@ -14,7 +14,7 @@ func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// SESUAIKAN NAMA TABEL DAN KOLOM DENGAN DATABASE POSTGRESQL KAMU
 		// Ambil data peserta yang aktif (misal: belum checkout)
-		query := `SELECT id_peserta, secret_key FROM peserta WHERE status_aktif = true`
+		query := `SELECT id_peserta, qr_secret_key FROM peserta`
 		
 		rows, err := db.Query(query)
         if err != nil {
