@@ -17,10 +17,10 @@ func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 		query := `SELECT id_peserta, secret_key FROM peserta WHERE status_aktif = true`
 		
 		rows, err := db.Query(query)
-		if err != nil {
-			c.String(http.StatusInternalServerError, "Gagal mengambil data dari database")
-			return
-		}
+        if err != nil {
+            c.String(http.StatusInternalServerError, "Gagal mengambil data: " + err.Error())
+            return
+        }
 		defer rows.Close()
 
 		// Gunakan strings.Builder untuk merakit teks CSV dengan sangat cepat dan hemat RAM
