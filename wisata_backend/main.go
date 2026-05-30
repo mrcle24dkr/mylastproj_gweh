@@ -4,6 +4,7 @@ import (
 	"wisata_backend/config"
 	"wisata_backend/models"
 	"wisata_backend/controllers"
+	"wisata_backend/routes"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
@@ -18,6 +19,8 @@ func main() {
 
 	// 3. Inisialisasi router Gin
 	r := gin.Default()
+
+	routes.SetupRoutes(r)
 
 	r.Use(cors.Default())
 

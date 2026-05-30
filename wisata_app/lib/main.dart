@@ -1,6 +1,7 @@
 // Lokasi File: lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'qr_page.dart';
 import 'map_page.dart';
 
@@ -8,18 +9,21 @@ void main() async {
   // Wajib dipanggil sebelum inisialisasi Firebase
   WidgetsFlutterBinding.ensureInitialized(); 
   
-  const String apiKey = String.fromEnvironment('FIREBASE_API_KEY');
-  const String authDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
-  const String databaseURL = String.fromEnvironment('FIREBASE_DATABASE_URL');
-  const String projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
-  const String storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
-  const String messagingSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
-  const String appId = String.fromEnvironment('FIREBASE_APP_ID');
-  const String measurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
+  await dotenv.load(fileName: ".env");
+  
+  // Mengambil data dari dotenv (ganti String.fromEnvironment)
+  final String apiKey = dotenv.env['FIREBASE_API_KEY'] ?? '';
+  final String authDomain = dotenv.env['FIREBASE_AUTH_DOMAIN'] ?? '';
+  final String databaseURL = dotenv.env['FIREBASE_DATABASE_URL'] ?? '';
+  final String projectId = dotenv.env['FIREBASE_PROJECT_ID'] ?? '';
+  final String storageBucket = dotenv.env['FIREBASE_STORAGE_BUCKET'] ?? '';
+  final String messagingSenderId = dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '';
+  final String appId = dotenv.env['FIREBASE_APP_ID'] ?? '';
+  final String measurementId = dotenv.env['FIREBASE_MEASUREMENT_ID'] ?? '';
 
   // Menyalakan koneksi ke Firebase
   await Firebase.initializeApp(
-    options: const FirebaseOptions(
+    options: FirebaseOptions(
       apiKey: apiKey,
       authDomain: authDomain,
       databaseURL: databaseURL,
