@@ -16,7 +16,7 @@
 // --- KONFIGURASI PIN ---
 #define SDA_PIN 12
 #define SCL_PIN 13
-#define BUZZER_PIN 16
+#define BUZZER_PIN 4
 
 // --- OBJEK ---
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
@@ -51,6 +51,8 @@ void setup() {
   Wire.begin(SDA_PIN, SCL_PIN);
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) Serial.println("OLED Error"); 
   display.setRotation(2); 
+  display.clearDisplay();
+  display.setTextColor(WHITE);
   
   tampilOled("BOOTING...", "Cek SD Card");
   delay(1000);
@@ -93,6 +95,8 @@ void setup() {
   Wire.begin(SDA_PIN, SCL_PIN);
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   display.setRotation(2);
+  display.clearDisplay();
+  display.setTextColor(WHITE);
 
   tampilOled("SIAP SCAN", isSDCardReady ? "Store & Forward" : "Online Direct");
 }

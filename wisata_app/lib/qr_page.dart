@@ -31,7 +31,7 @@ class _QrPageState extends State<QrPage> {
   Future<void> fetchDataPeserta() async {
     try {
       // Perhatikan: URL sekarang menggunakan widget.idPeserta
-      final url = Uri.parse('http://127.0.0.1:8080/api/peserta/${widget.idPeserta}');
+      final url = Uri.parse('http://116.193.190.121:8080/api/sync-keys${widget.idPeserta}');
       final response = await http.get(url);
       
       if (response.statusCode == 200) {
