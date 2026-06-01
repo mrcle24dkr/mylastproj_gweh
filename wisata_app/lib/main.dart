@@ -2,9 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'login_page.dart';
 import 'qr_page.dart';
 import 'map_page.dart';
-import 'login_page.dart';
 
 void main() async {
   // Wajib dipanggil sebelum inisialisasi Firebase
@@ -12,7 +12,7 @@ void main() async {
   
   await dotenv.load(fileName: ".env");
   
-  // Mengambil data dari dotenv (ganti String.fromEnvironment)
+  // Mengambil data dari dotenv
   final String apiKey = dotenv.env['FIREBASE_API_KEY'] ?? '';
   final String authDomain = dotenv.env['FIREBASE_AUTH_DOMAIN'] ?? '';
   final String databaseURL = dotenv.env['FIREBASE_DATABASE_URL'] ?? '';
@@ -51,13 +51,16 @@ class WisataApp extends StatelessWidget {
         primarySwatch: Colors.red,
         scaffoldBackgroundColor: Colors.white,
       ),
+      // Aplikasi pertama kali dibuka akan langsung masuk ke LoginPage
       home: const LoginPage(),
     );
   }
 }
 
 class MainNavigator extends StatefulWidget {
-  const MainNavigator({super.key});
+  final String idPeserta; // Menerima ID dinamis dari halaman Login
+  
+  const MainNavigator({super.key, required this.idPeserta});
 
   @override
   State<MainNavigator> createState() => _MainNavigatorState();
@@ -65,11 +68,11 @@ class MainNavigator extends StatefulWidget {
 
 class _MainNavigatorState extends State<MainNavigator> {
   int _selectedIndex = 0;
-  final String idPeserta = "EMP-VA01-038"; 
 
+  // Daftar halaman peserta, ID diteruskan ke QrPage dan MapPage
   late final List<Widget> _pages = [
-    QrPage(idPeserta: idPeserta),
-    MapPage(idPeserta: idPeserta),
+    QrPage(idPeserta: widget.idPeserta),
+    MapPage(idPeserta: widget.idPeserta),
   ];
 
   void _onItemTapped(int index) {
