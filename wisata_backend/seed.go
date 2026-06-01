@@ -126,7 +126,7 @@ Raditya Ramadhan,5231011001`
 		peserta := models.Peserta{
 			IDPeserta:   kodeBooking,
 			NamaLengkap: nama,
-			IDBus:       idBus,
+			IDBus:       &idBus,
 			QRSecretKey: generateTOTPSecret(),
 			KataSandi:   "12345",    // ---> TAMBAHAN: Default Password
 			Role:        "PESERTA",  // ---> TAMBAHAN: Role Peserta
