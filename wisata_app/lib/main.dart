@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'qr_page.dart';
 import 'map_page.dart';
+import 'login_page.dart';
 
 void main() async {
   // Wajib dipanggil sebelum inisialisasi Firebase
@@ -50,7 +51,7 @@ class WisataApp extends StatelessWidget {
         primarySwatch: Colors.red,
         scaffoldBackgroundColor: Colors.white,
       ),
-      home: const MainNavigator(),
+      home: const LoginPage(),
     );
   }
 }
