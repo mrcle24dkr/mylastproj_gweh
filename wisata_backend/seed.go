@@ -43,7 +43,19 @@ func main() {
 	config.DB.FirstOrCreate(&bus1, models.ArmadaBus{NamaBus: bus1.NamaBus})
 	config.DB.FirstOrCreate(&bus2, models.ArmadaBus{NamaBus: bus2.NamaBus})
 
-	// 4. Data Mentah Mahasiswa (Dosen sudah difilter keluar)
+	// 4. BUAT AKUN PANITIA (ADMIN)
+	fmt.Println("⏳ Menyiapkan akun Panitia Utama...")
+	panitia := models.Peserta{
+		IDPeserta:   "PANITIA",
+		NamaLengkap: "Admin Empirise",
+		KataSandi:   "12345",
+		Role:        "PANITIA",
+		QRSecretKey: generateTOTPSecret(), // Diberi key sekadar agar tidak kosong
+	}
+	// Inject Panitia ke tabel
+	config.DB.FirstOrCreate(&panitia, models.Peserta{IDPeserta: panitia.IDPeserta})
+
+	// 5. Data Mentah Mahasiswa (Dosen sudah difilter keluar)
 	rawCSV := `Jovensy Devianto,5220611206
 Benediktus Adryano Vito,5230611169
 Anisa Nur Salsabila,5230611177
@@ -76,9 +88,8 @@ Ivan Bagus Zulpani,5221011041
 Agung Hanif Izzatulhaq,5221011067
 Rizqi Akbar Hernawan,5231011016
 Raditya Ramadhan,5231011001`
-    // (Saya memasukkan 32 data pertama sebagai sampel, Anda bisa copy-paste sisa datanya ke dalam string rawCSV ini dengan format yang sama)
 
-	// 5. Eksekusi Otomatisasi
+	// 6. Eksekusi Otomatisasi
 	fmt.Println("⏳ Memproses injeksi data Peserta...")
 	reader := csv.NewReader(strings.NewReader(rawCSV))
 	records, err := reader.ReadAll()
@@ -117,6 +128,8 @@ Raditya Ramadhan,5231011001`
 			NamaLengkap: nama,
 			IDBus:       idBus,
 			QRSecretKey: generateTOTPSecret(),
+			KataSandi:   "12345",    // ---> TAMBAHAN: Default Password
+			Role:        "PESERTA",  // ---> TAMBAHAN: Role Peserta
 		}
 
 		// Injeksi ke Database
@@ -125,5 +138,5 @@ Raditya Ramadhan,5231011001`
 		}
 	}
 
-	fmt.Printf("✅ SUKSES! %d data peserta berhasil disuntikkan ke dalam brankas PostgreSQL.\n", count)
+	fmt.Printf("✅ SUKSES! %d data peserta dan 1 Admin berhasil disuntikkan ke dalam brankas PostgreSQL.\n", count)
 }
