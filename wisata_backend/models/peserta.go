@@ -6,6 +6,8 @@ type Peserta struct {
 	IDBus       uint      
 	Bus         ArmadaBus `gorm:"foreignKey:IDBus"`
 	QRSecretKey string    `gorm:"type:varchar(255)"` 
+	KataSandi   string `gorm:"column:kata_sandi" json:"-"`
+	Role        string `gorm:"column:role" json:"role"`
 }
 
 // Tambahkan blok ini untuk memaksa nama tabel

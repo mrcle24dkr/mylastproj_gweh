@@ -8,13 +8,20 @@ import (
 )
 
 func SetupRoutes(r *gin.Engine) {
+	// Mempertahankan kode aslimu untuk mengambil sql.DB dari GORM
 	sqlDB, err := config.DB.DB()
 	if err != nil {
 		panic("Gagal mengambil instance sql.DB dari GORM: " + err.Error())
 	}
 
+	// Grouping API
 	api := r.Group("/api")
 	{
+		// 1. Rute lamamu untuk alat ESP32 (Tetap biarkan seperti aslinya)
 		api.GET("/sync-keys", controllers.SyncKeysHandler(sqlDB))
+
+		// 2. Rute BARU untuk Aplikasi Flutter (Login & Dashboard)
+		api.POST("/login", controllers.Login)
+		api.GET("/logs", controllers.GetLogs)
 	}
 }
