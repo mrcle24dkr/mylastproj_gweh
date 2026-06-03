@@ -133,7 +133,9 @@ Raditya Ramadhan,5231011001`
 		}
 
 		// Injeksi ke Database
-		if err := config.DB.FirstOrCreate(&peserta, models.Peserta{IDPeserta: peserta.IDPeserta}).Error; err == nil {
+		if err := config.DB.Where(models.Peserta{IDPeserta: peserta.IDPeserta}).
+			Assign(models.Peserta{KataSandi: "12345", Role: "PESERTA", QRSecretKey: peserta.QRSecretKey}).
+			FirstOrCreate(&peserta).Error; err == nil {
 			count++
 		}
 	}
