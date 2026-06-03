@@ -23,5 +23,11 @@ func SetupRoutes(r *gin.Engine) {
 		// 2. Rute BARU untuk Aplikasi Flutter (Login & Dashboard)
 		api.POST("/login", controllers.Login)
 		api.GET("/logs", controllers.GetLogs)
+
+		api.PUT("/user/password", controllers.GantiPassword)
+
+		// ---> RUTE BARU UNTUK HAK AKSES PANITIA <---
+		api.GET("/panitia/peserta", controllers.GetAllPeserta)
+		api.PUT("/panitia/peserta/:id", controllers.EditPesertaManual)
 	}
 }
