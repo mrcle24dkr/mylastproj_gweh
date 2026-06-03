@@ -18,7 +18,7 @@ func SetupRoutes(r *gin.Engine) {
 	api := r.Group("/api")
 	{
 		// 1. Rute lamamu untuk alat ESP32 (Tetap biarkan seperti aslinya)
-		api.GET("/sync-keys", controllers.SyncKeysHandler(sqlDB))
+		api.GET("/sync-keys/:id", controllers.SyncKeysHandler(sqlDB))
 
 		// 2. Rute BARU untuk Aplikasi Flutter (Login & Dashboard)
 		api.POST("/login", controllers.Login)
