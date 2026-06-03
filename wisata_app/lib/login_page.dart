@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'main.dart'; // Memanggil MainNavigator (Peserta)
 import 'panitia_navigator.dart'; // Memanggil PanitiaNavigator (Panitia)
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,37 +19,66 @@ class _LoginPageState extends State<LoginPage> {
 
   void _handleLogin() async {
     String idInput = _idController.text.trim().toUpperCase();
+    String passwordInput = _passwordController.text;
 
-    // Validasi kosong
-    if (idInput.isEmpty) {
+    // 1. Validasi kosong
+    if (idInput.isEmpty || passwordInput.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("ID Pengguna tidak boleh kosong!"), backgroundColor: Colors.red),
+        const SnackBar(content: Text("ID dan Kata Sandi tidak boleh kosong!"), backgroundColor: Colors.red),
       );
       return;
     }
 
     setState(() => _isLoading = true);
-    
-    // TODO: Nanti disambungkan ke API Golang untuk validasi password
-    await Future.delayed(const Duration(seconds: 1)); // Simulasi loading API
 
-    setState(() => _isLoading = false);
-
-    if (!mounted) return;
-
-    // LOGIKA ROUTING ROLE (Panitia vs Peserta)
-    if (idInput.contains("PANITIA") || idInput.contains("ADMIN")) {
-      // Masuk ke Mode Panitia
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const PanitiaNavigator()),
+    try {
+      // 2. TEMBAK API GOLANG
+      final url = Uri.parse('http://116.193.190.121:8080/api/login');
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "id_pengguna": idInput, // Harus sama dengan struct Golang
+          "kata_sandi": passwordInput,
+        }),
       );
-    } else {
-      // Masuk ke Mode Peserta (Kirimkan ID yang diketik ke MainNavigator)
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => MainNavigator(idPeserta: idInput)),
+
+      final data = json.decode(response.body);
+
+      // 3. CEK HASIL DARI DATABASE
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+
+        String role = data['data']['role'];
+        String idValid = data['data']['id']; // Ambil ID yang benar dari DB
+
+        // LOGIKA ROUTING ROLE BERDASARKAN DATABASE
+        if (role == "PANITIA") {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const PanitiaNavigator()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => MainNavigator(idPeserta: idValid)),
+          );
+        }
+      } else {
+        // Jika password salah atau ID tidak ditemukan (401 / 404)
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['message'] ?? 'Login gagal'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint("Error Login: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Gagal terhubung ke Server"), backgroundColor: Colors.red),
       );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
