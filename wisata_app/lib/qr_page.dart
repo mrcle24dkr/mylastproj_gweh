@@ -31,14 +31,14 @@ class _QrPageState extends State<QrPage> {
   Future<void> fetchDataPeserta() async {
     try {
       // Perhatikan: URL sekarang menggunakan widget.idPeserta
-      final url = Uri.parse('http://116.193.190.121:8080/api/sync-keys/${widget.idPeserta}');
+      final url = Uri.parse('http://116.193.190.121:8080/api/peserta/${widget.idPeserta}');
       final response = await http.get(url);
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body)['data'];
         setState(() {
-          secretKey = data['QRSecretKey'];
-          namaPeserta = data['NamaLengkap'];
+          secretKey = data['qr_secret_key'] ?? data['QRSecretKey'] ?? '';
+          namaPeserta = data['nama_lengkap'] ?? data['NamaLengkap'] ?? 'Unknown';
         });
         
         generateTOTP(); // Panggil racikan pertama
@@ -49,12 +49,13 @@ class _QrPageState extends State<QrPage> {
         });
       } else {
         setState(() {
-          namaPeserta = "Data peserta tidak ditemukan";
+          namaPeserta = "Data peserta tidak ditemukan (404)";
         });
       }
     } catch (e) {
+      debugPrint("Error Fetch API: $e"); 
       setState(() {
-        namaPeserta = "Gagal terhubung ke Server";
+        namaPeserta = "Gagal memproses data Server";
       });
     }
   }
