@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'login_page.dart';
 import 'qr_page.dart';
 import 'map_page.dart';
+import 'akun_peserta_page.dart';
 
 void main() async {
   // Wajib dipanggil sebelum inisialisasi Firebase
@@ -73,6 +74,7 @@ class _MainNavigatorState extends State<MainNavigator> {
   late final List<Widget> _pages = [
     QrPage(idPeserta: widget.idPeserta),
     MapPage(idPeserta: widget.idPeserta),
+    AkunPesertaPage(idPeserta: widget.idPeserta),
   ];
 
   void _onItemTapped(int index) {
@@ -89,6 +91,7 @@ class _MainNavigatorState extends State<MainNavigator> {
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'QR Tiket'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Lokasi & Radar'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Akun Saya'),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.red[800],
