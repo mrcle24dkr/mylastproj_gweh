@@ -3,11 +3,12 @@ package controllers
 import (
 	"database/sql"
 	"net/http"
-	"strconv"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
 
+// Pastikan fungsi ini menerima parameter sql.DB sesuai dengan routes.go milikmu
 func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		query := `SELECT id_peserta, qr_secret_key FROM peserta`
@@ -21,9 +22,11 @@ func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 		var csvData string
 		for rows.Next() {
 			var idPeserta, secretKey string
+			// Tarik data dengan aman
 			if err := rows.Scan(&idPeserta, &secretKey); err == nil {
-				// Susun CSV dengan rapi
-				csvData += idPeserta + "," + secretKey + "\n"
+				if idPeserta != "" && secretKey != "" {
+					csvData += idPeserta + "," + secretKey + "\n"
+				}
 			}
 		}
 
@@ -32,18 +35,15 @@ func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// ---------------------------------------------------------
-		// 3 HEADER PENYELAMAT ESP32 (MEMAKSA PENULISAN SD CARD)
-		// ---------------------------------------------------------
-		// 1. Beritahu ukuran pastinya
-		c.Header("Content-Length", strconv.Itoa(len(csvData)))
+		fileName := "database_peserta.csv"
+		err = os.WriteFile(fileName, []byte(csvData), 0644)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Gagal membuat file fisik di server")
+			return
+		}
 
 		c.Header("Connection", "close")
-		
-		// 2. MATIKAN Keep-Alive! Ini yang membuat writeToStream ESP32 error
-		c.Header("Connection", "close") 
-		
-		// 3. Gunakan c.Data agar Golang mengirim raw byte langsung (tanpa chunking)
-		c.Data(http.StatusOK, "text/plain", []byte(csvData))
+
+		c.File(fileName)
 	}
 }
