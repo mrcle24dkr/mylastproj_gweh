@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -42,6 +43,8 @@ func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 			c.String(http.StatusNotFound, "Tidak ada data peserta")
 			return
 		}
+
+		c.Header("Content-Length", strconv.Itoa(csvBuilder.Len()))
 
 		// Set header agar dikenali sebagai teks mentah oleh HTTPClient ESP32
 		c.Header("Content-Type", "text/plain")
