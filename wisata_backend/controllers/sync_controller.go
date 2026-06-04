@@ -3,12 +3,12 @@ package controllers
 import (
 	"database/sql"
 	"net/http"
-	"os"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Pastikan fungsi ini menerima parameter sql.DB sesuai dengan routes.go milikmu
+// Pastikan parameter db sesuai dengan yang didaftarkan di routes.go
 func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		query := `SELECT id_peserta, qr_secret_key FROM peserta`
@@ -22,8 +22,8 @@ func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 		var csvData string
 		for rows.Next() {
 			var idPeserta, secretKey string
-			// Tarik data dengan aman
 			if err := rows.Scan(&idPeserta, &secretKey); err == nil {
+				// Cegah data kosong masuk ke CSV
 				if idPeserta != "" && secretKey != "" {
 					csvData += idPeserta + "," + secretKey + "\n"
 				}
@@ -35,15 +35,8 @@ func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		fileName := "database_peserta.csv"
-		err = os.WriteFile(fileName, []byte(csvData), 0644)
-		if err != nil {
-			c.String(http.StatusInternalServerError, "Gagal membuat file fisik di server")
-			return
-		}
+		c.Header("Content-Length", strconv.Itoa(len(csvData)))
 
-		c.Header("Connection", "close")
-
-		c.File(fileName)
+		c.Data(http.StatusOK, "text/csv", []byte(csvData))
 	}
 }
