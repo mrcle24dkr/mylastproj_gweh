@@ -16,7 +16,7 @@ func GetPesertaByID(c *gin.Context) {
 
 	// Cari data peserta di database, dan JANGAN LUPA tarik juga data Bus-nya (Preload)
 	// agar kita bisa mendapatkan LatTitikKumpul dan LonTitikKumpul
-	if err := config.DB.Preload("Bus").First(&peserta, "id_peserta = ?", idPeserta).Error; err != nil {
+	if err := config.DB.First(&peserta, "id_peserta = ?", idPeserta).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "gagal",
 			"message": "Data peserta tidak ditemukan!",
