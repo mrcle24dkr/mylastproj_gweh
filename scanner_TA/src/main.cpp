@@ -2,9 +2,9 @@
 #include "soc/rtc_cntl_reg.h"
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WiFiManager.h> 
+#include <WiFiManager.h>
 #include <HTTPClient.h>
-#include <ESP32QRCodeReader.h> 
+#include <ESP32QRCodeReader.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -12,11 +12,12 @@
 #include "FS.h"
 #include "SD_MMC.h"
 #include "TOTP.h"
+#include <map>
 
 // --- KONFIGURASI PIN ---
 #define SDA_PIN 12
 #define SCL_PIN 13
-#define BUZZER_PIN 4
+// BUZZER TELAH DIHAPUS SEPENUHNYA
 
 // --- OBJEK ---
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
@@ -24,50 +25,56 @@ RTC_DS3231 rtc;
 ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
 WiFiManager wm;
 
+// --- DATABASE RAM (Penyelamat ESP32) ---
+std::map<String, String> databasePeserta;
+
 // --- STATUS SISTEM ---
-bool isSystemOn = true;       
-bool isSDCardReady = false; 
+bool isSystemOn = true;
+bool isSDCardReady = false;
 
 // --- KONFIGURASI SERVER ---
-const char* urlSync = "http://116.193.190.121:8080/api/sync-keys"; 
+const char* urlSync = "http://116.193.190.121:8080/api/sync-keys";
+const char* urlPeserta = "http://116.193.190.121:8080/api/peserta/"; // API Untuk Online Direct
 
 // --- DEKLARASI FUNGSI ---
 void tampilOled(String a, String b);
 String getJamSekarang();
 void syncData();
+void muatDatabaseKeRAM();
 String dapatkanSecret(String idPeserta);
 void simpanLog(String idPeserta, String status);
 void prosesAbsen(String qr);
-void beep(int durasi);
-int decodeBase32(const char* encoded, uint8_t* decoded); 
+int decodeBase32(const char* encoded, uint8_t* decoded);
 
+
+// =======================================================================
+// FUNGSI SETUP UTAMA
+// =======================================================================
 void setup() {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); 
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Matikan detektor drop voltase
   Serial.begin(115200);
-  
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW); 
 
+  // 1. INISIALISASI OLED
   Wire.begin(SDA_PIN, SCL_PIN);
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) Serial.println("OLED Error"); 
-  display.setRotation(2); 
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) Serial.println("OLED Error");
+  display.setRotation(2);
   display.clearDisplay();
   display.setTextColor(WHITE);
-  
-  tampilOled("BOOTING...", "Cek SD Card");
-  delay(1000);
 
-  // 1. CEK SD CARD (Mode 1-Bit)
+  tampilOled("BOOTING...", "Cek Hardware");
+  delay(1000); // Waktu bernapas mesin
+
+  // 2. CEK SD CARD
   if (!SD_MMC.begin("/sdcard", true) || SD_MMC.cardType() == CARD_NONE) {
     isSDCardReady = false;
-    tampilOled("MODE ONLINE", "SD Card Gagal");
+    tampilOled("MODE ONLINE", "SD Card Dilepas/Rusak");
   } else {
     isSDCardReady = true;
-    tampilOled("MODE HYBRID", "SD Card Aktif");
+    tampilOled("MODE HYBRID", "SD Card Terbaca");
   }
-  delay(1500);
+  delay(1500); // Waktu bernapas mesin
 
-  // 2. CEK RTC
+  // 3. CEK RTC
   if (!rtc.begin()) {
     tampilOled("ERROR RTC", "Cek Kabel I2C");
     delay(2000);
@@ -75,88 +82,95 @@ void setup() {
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
 
-  // 3. KONEKSI WIFI & SINKRONISASI
+  // 4. KONEKSI WIFI & SINKRONISASI (Jika Terhubung)
   tampilOled("WIFI SETUP", "Menghubungkan...");
-  wm.setConfigPortalTimeout(60); 
-  if (wm.autoConnect("ABSENSI_CAM", "empirise123")) {
-    if (isSDCardReady) syncData();
+  delay(500);
+  wm.setConfigPortalTimeout(60);
+  bool wifiConnected = wm.autoConnect("ABSENSI_CAM", "empirise123");
+
+  if (wifiConnected) {
+    if (isSDCardReady) {
+      syncData(); // Unduh CSV ke SD Card
+    }
   } else if (!isSDCardReady) {
+    // Jika tidak ada WiFi dan tidak ada SD Card, alat lumpuh total
     tampilOled("FATAL ERROR", "No WiFi & No SD");
-    while(true); 
+    while(true) { delay(1000); }
   }
 
-  // 4. SETUP KAMERA
+  // 5. PINDAHKAN SELURUH DATA KE RAM (SUPER PENTING SEBELUM KAMERA NYALA)
+  if (isSDCardReady) {
+    muatDatabaseKeRAM();
+  }
+
+  // 6. SETUP KAMERA
   tampilOled("KAMERA SETUP", "Memanaskan Lensa");
-  reader.setup(); 
-  reader.begin();
+  delay(1000); // WAKTU BERNAPAS PALING KRUSIAL SEBELUM TARIKAN ARUS BESAR
   
-  // Bangunkan OLED
-  delay(100); 
+  reader.setup();
+  reader.begin();
+  delay(1000); // Biarkan kamera stabil
+
+  // Bangunkan OLED lagi karena tarikan arus kamera kadang mereset jalur I2C
   Wire.begin(SDA_PIN, SCL_PIN);
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   display.setRotation(2);
   display.clearDisplay();
   display.setTextColor(WHITE);
 
-  tampilOled("SIAP SCAN", isSDCardReady ? "Store & Forward" : "Online Direct");
+  tampilOled("SIAP SCAN", isSDCardReady ? "Mode: Cepat (RAM)" : "Mode: Online Direct");
 }
 
+
+// =======================================================================
+// LOOP KAMERA (BERSIH DARI SD CARD)
+// =======================================================================
 void loop() {
-  // --- LOGIKA SCANNING MURNI ---
   if (isSystemOn) {
     struct QRCodeData qrCodeData;
     if (reader.receiveQrCode(&qrCodeData, 100)) {
       if (qrCodeData.valid) {
         String qrCode = (const char *)qrCodeData.payload;
-        Serial.println("QR DITEMUKAN: " + qrCode);
+        
+        // Kasih jeda agar kamera berhenti menyedot data sesaat
+        delay(200); 
+        
         prosesAbsen(qrCode);
-        delay(2000); 
-        tampilOled("SIAP SCAN", isSDCardReady ? "Store & Forward" : "Online Direct");
+
+        delay(3000); // Tahan hasil scan di layar selama 3 detik sebelum lanjut
+        tampilOled("SIAP SCAN", isSDCardReady ? "Mode: Cepat (RAM)" : "Mode: Online Direct");
       }
     }
     delay(10); 
   }
 }
 
-void syncData() {
-  tampilOled("SINKRONISASI", "Unduh Data CSV...");
-  HTTPClient http;
-  http.begin(urlSync);
-  int httpCode = http.GET();
-  
-  if (httpCode == HTTP_CODE_OK) {
-    File file = SD_MMC.open("/database_peserta.csv", FILE_WRITE);
-    if (file) {
-      http.writeToStream(&file); 
-      file.close();
-      tampilOled("SINKRON SUKSES", "Kunci Diperbarui");
-      beep(200); delay(100); beep(200); 
-    }
-  } else {
-    tampilOled("SINKRON GAGAL", "Server Down/Error");
-    beep(1000); 
-  }
-  http.end();
-  delay(2000);
-}
 
+// =======================================================================
+// LOGIKA PEMROSESAN ABSEN
+// =======================================================================
 void prosesAbsen(String qr) {
+  qr.trim();
   int separatorIndex = qr.indexOf(':');
   if (separatorIndex == -1) {
     tampilOled("GAGAL!", "Format QR Salah");
-    beep(1000);
     return;
   }
   
   String idPeserta = qr.substring(0, separatorIndex);
   String otpMasuk = qr.substring(separatorIndex + 1);
-  tampilOled("Cek Data...", idPeserta);
+  idPeserta.trim();
+  otpMasuk.trim();
 
+  tampilOled("Cek Data...", idPeserta);
+  delay(300); // Waktu bernapas OLED
+
+  // Ambil Secret (Bisa dari RAM, atau tembak API langsung jika Online Direct)
   String secretKey = dapatkanSecret(idPeserta);
+  
   if (secretKey == "") {
     tampilOled("GAGAL!", "ID Tidak Dikenal");
     simpanLog(idPeserta, "GAGAL_UNREGISTERED");
-    beep(1000);
     return;
   }
 
@@ -171,11 +185,136 @@ void prosesAbsen(String qr) {
   if (String(otpLokal) == otpMasuk) {
     tampilOled("HADIR!", idPeserta + "\n" + getJamSekarang());
     simpanLog(idPeserta, "VALID");
-    beep(200); 
   } else {
     tampilOled("KADALUARSA!", "QR Sudah Usang");
     simpanLog(idPeserta, "GAGAL_EXPIRED");
-    beep(1000); 
+  }
+}
+
+
+// =======================================================================
+// FUNGSI PENCARIAN KUNCI (HYBRID: RAM -> API ONLINE)
+// =======================================================================
+String dapatkanSecret(String targetID) {
+  // 1. CARA TERCEPAT: Cari di memori RAM internal (Jika SD Card dipakai)
+  if (databasePeserta.count(targetID) > 0) {
+    return databasePeserta[targetID];
+  }
+
+  // 2. SKENARIO ONLINE DIRECT: Jika SD Card dilepas/rusak, langsung tanya ke Server Golang!
+  if (!isSDCardReady && WiFi.status() == WL_CONNECTED) {
+    tampilOled("ONLINE CEK...", "Menghubungi Server");
+    delay(100);
+
+    HTTPClient http;
+    http.begin(String(urlPeserta) + targetID);
+    int httpCode = http.GET();
+    String secret = "";
+
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      
+      // Ambil kunci rahasia langsung dari respon JSON API Flutter-mu
+      int keyIndex = payload.indexOf("\"QRSecretKey\":\"");
+      if(keyIndex == -1) keyIndex = payload.indexOf("\"qr_secret_key\":\""); // Coba format lain jika ada
+
+      if (keyIndex != -1) {
+        int colonIndex = payload.indexOf(":", keyIndex);
+        int startQuote = payload.indexOf("\"", colonIndex);
+        int endQuote = payload.indexOf("\"", startQuote + 1);
+        if(startQuote != -1 && endQuote != -1) {
+          secret = payload.substring(startQuote + 1, endQuote);
+        }
+      }
+    }
+    http.end();
+    return secret; // Kembalikan kunci dari hasil download langsung
+  }
+
+  // Jika di RAM tidak ada, dan tidak ada internet
+  return ""; 
+}
+
+
+// =======================================================================
+// FUNGSI SINKRONISASI & PEMINDAHAN KE RAM
+// =======================================================================
+void muatDatabaseKeRAM() {
+  databasePeserta.clear();
+  if (!isSDCardReady) return;
+
+  tampilOled("MEMUAT RAM", "Membaca SD Card...");
+  delay(500);
+
+  File file = SD_MMC.open("/database_peserta.csv", FILE_READ);
+  if (!file) {
+    tampilOled("RAM GAGAL", "File CSV Hilang");
+    delay(2000);
+    return;
+  }
+
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    line.trim();
+    int commaIndex = line.indexOf(',');
+    if (commaIndex != -1) {
+      String id = line.substring(0, commaIndex);
+      String key = line.substring(commaIndex + 1);
+      
+      // Bersihkan karakter aneh enter
+      id.replace("\r", "");
+      key.replace("\r", "");
+      
+      databasePeserta[id] = key; // Masukkan ke wadah RAM
+    }
+  }
+  file.close();
+  
+  tampilOled("RAM SUKSES!", String(databasePeserta.size()) + " Peserta Siap");
+  delay(1500);
+}
+
+void syncData() {
+  tampilOled("SINKRONISASI", "Unduh Data Server");
+  delay(500);
+
+  HTTPClient http;
+  http.begin(urlSync);
+  int httpCode = http.GET();
+  
+  if (httpCode == HTTP_CODE_OK) {
+    File file = SD_MMC.open("/database_peserta.csv", FILE_WRITE);
+    if (file) {
+      http.writeToStream(&file);
+      file.close();
+      tampilOled("SINKRON SUKSES", "Database Terkini");
+      delay(1500);
+    } else {
+      tampilOled("SINKRON GAGAL", "Gagal Tulis SD Card");
+      delay(2000);
+    }
+  } else {
+    tampilOled("SINKRON GAGAL", "Server Down/Error");
+    delay(2000);
+  }
+  http.end();
+}
+
+
+// =======================================================================
+// FUNGSI PENDUKUNG (LOG, WAKTU, DECODE, OLED)
+// =======================================================================
+void simpanLog(String idPeserta, String status) {
+  if (!isSDCardReady) {
+    // Mode Online Direct aktif = Lewati simpan log fisik
+    return;
+  }
+  File file = SD_MMC.open("/log_presensi.csv", FILE_APPEND);
+  if (file) {
+    file.print(idPeserta); file.print(",");
+    file.print(status); file.print(",");
+    file.println(getJamSekarang());
+    file.close();
   }
 }
 
@@ -199,38 +338,6 @@ int decodeBase32(const char* encoded, uint8_t* decoded) {
   return count;
 }
 
-String dapatkanSecret(String targetID) {
-  if (!isSDCardReady) return "";
-  File file = SD_MMC.open("/database_peserta.csv", FILE_READ);
-  if (!file) return "";
-  while (file.available()) {
-    String line = file.readStringUntil('\n');
-    line.trim();
-    if (line.startsWith(targetID)) {
-      int commaIndex = line.indexOf(',');
-      if (commaIndex != -1) {
-        file.close();
-        return line.substring(commaIndex + 1); 
-      }
-    }
-  }
-  file.close();
-  return ""; 
-}
-
-void simpanLog(String idPeserta, String status) {
-  if (!isSDCardReady) return;
-  File file = SD_MMC.open("/log_presensi.csv", FILE_APPEND);
-  if (file) {
-    file.print(idPeserta);
-    file.print(",");
-    file.print(status);
-    file.print(",");
-    file.println(getJamSekarang());
-    file.close();
-  }
-}
-
 void getJamSekarang(char* buffer, size_t maxLen) {
   DateTime now = rtc.now();
   snprintf(buffer, maxLen, "%02d-%02d-%04d %02d:%02d:%02d", 
@@ -251,10 +358,4 @@ void tampilOled(String a, String b) {
   display.setCursor(0,20);
   display.println(b);
   display.display();
-}
-
-void beep(int durasi) {
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(durasi);
-  digitalWrite(BUZZER_PIN, LOW);
 }
