@@ -2,54 +2,46 @@ package controllers
 
 import (
 	"database/sql"
-	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-// SyncKeysHandler meracik data dari PostgreSQL menjadi format CSV untuk ESP32
 func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// SESUAIKAN NAMA TABEL DAN KOLOM DENGAN DATABASE POSTGRESQL KAMU
-		// Ambil data peserta yang aktif (misal: belum checkout)
 		query := `SELECT id_peserta, qr_secret_key FROM peserta`
-		
 		rows, err := db.Query(query)
-        if err != nil {
-            c.String(http.StatusInternalServerError, "Gagal mengambil data: " + err.Error())
-            return
-        }
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Gagal mengambil data")
+			return
+		}
 		defer rows.Close()
 
-		// Gunakan strings.Builder untuk merakit teks CSV dengan sangat cepat dan hemat RAM
-		var csvBuilder strings.Builder
-
-		// Loop semua data dan susun dengan format: ID,SECRET_KEY\n
+		var csvData string
 		for rows.Next() {
 			var idPeserta, secretKey string
-			if err := rows.Scan(&idPeserta, &secretKey); err != nil {
-				continue // Abaikan baris yang error, lanjut ke peserta berikutnya
+			if err := rows.Scan(&idPeserta, &secretKey); err == nil {
+				// Susun CSV dengan rapi
+				csvData += idPeserta + "," + secretKey + "\n"
 			}
-			
-			// Tulis ke dalam builder
-			csvBuilder.WriteString(fmt.Sprintf("%s,%s\n", idPeserta, secretKey))
 		}
 
-		// Jika data kosong
-		if csvBuilder.Len() == 0 {
+		if len(csvData) == 0 {
 			c.String(http.StatusNotFound, "Tidak ada data peserta")
 			return
 		}
 
-		c.Header("Content-Length", strconv.Itoa(csvBuilder.Len()))
-
-		// Set header agar dikenali sebagai teks mentah oleh HTTPClient ESP32
-		c.Header("Content-Type", "text/plain")
+		// ---------------------------------------------------------
+		// 3 HEADER PENYELAMAT ESP32 (MEMAKSA PENULISAN SD CARD)
+		// ---------------------------------------------------------
+		// 1. Beritahu ukuran pastinya
+		c.Header("Content-Length", strconv.Itoa(len(csvData)))
 		
-		// Tembakkan output CSV-nya (Code 200 OK)
-		c.String(http.StatusOK, csvBuilder.String())
+		// 2. MATIKAN Keep-Alive! Ini yang membuat writeToStream ESP32 error
+		c.Header("Connection", "close") 
+		
+		// 3. Gunakan c.Data agar Golang mengirim raw byte langsung (tanpa chunking)
+		c.Data(http.StatusOK, "text/plain", []byte(csvData))
 	}
 }
