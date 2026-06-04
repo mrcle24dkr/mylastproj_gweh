@@ -37,6 +37,8 @@ func SyncKeysHandler(db *sql.DB) gin.HandlerFunc {
 		// ---------------------------------------------------------
 		// 1. Beritahu ukuran pastinya
 		c.Header("Content-Length", strconv.Itoa(len(csvData)))
+
+		c.Header("Connection", "close")
 		
 		// 2. MATIKAN Keep-Alive! Ini yang membuat writeToStream ESP32 error
 		c.Header("Connection", "close") 
