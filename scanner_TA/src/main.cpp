@@ -8,7 +8,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <time.h>        // Library standar C++ untuk waktu internal (Pengganti RTC)
+#include <time.h>
 #include "FS.h"
 #include "SD_MMC.h"
 #include "TOTP.h"
