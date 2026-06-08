@@ -18,13 +18,12 @@ class _MapPageState extends State<MapPage> {
   String _statusGeofence = "-";
   double _jarakMeter = 0;
 
-  final double latPos = -7.74664;
-  final double lonPos = 110.35546;
+  // Variabel dinamis untuk lokasi titik kumpul
+  double latPos = -7.74664;
+  double lonPos = 110.35546;
   final double radiusAman = 50.0;
 
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
-  
-  // Kontroler untuk menggerakkan kamera peta
   final MapController _mapController = MapController();
   LatLng _posisiPeserta = const LatLng(-7.74664, 110.35546);
   bool _lokasiDitemukan = false;
@@ -32,7 +31,21 @@ class _MapPageState extends State<MapPage> {
   @override
   void initState() {
     super.initState();
+    _listenTitikKumpul(); // Memantau perubahan titik kumpul
     _cekIzinDanAmbilLokasi();
+  }
+
+  // 1. DENGARKAN PERUBAHAN TITIK KUMPUL DARI FIREBASE
+  void _listenTitikKumpul() {
+    _dbRef.child("titik_kumpul_aktif").onValue.listen((DatabaseEvent event) {
+      final data = event.snapshot.value as Map?;
+      if (data != null) {
+        setState(() {
+          latPos = (data['lat'] as num).toDouble();
+          lonPos = (data['lon'] as num).toDouble();
+        });
+      }
+    });
   }
 
   Future<void> _cekIzinDanAmbilLokasi() async {
@@ -48,10 +61,10 @@ class _MapPageState extends State<MapPage> {
       if (permission == LocationPermission.denied) return;
     }
 
-    // Dengarkan perubahan lokasi HP secara Real-Time
     Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 2),
     ).listen((Position position) {
+      // Menghitung jarak ke latPos & lonPos terbaru
       double jarak = LocationService.hitungJarakHaversine(
         position.latitude, position.longitude, latPos, lonPos
       );
@@ -65,10 +78,8 @@ class _MapPageState extends State<MapPage> {
         _lokasiDitemukan = true;
       });
 
-      // Geser kamera peta secara otomatis mengikuti peserta
       _mapController.move(_posisiPeserta, 17.0);
 
-      // Kirim data Tracking ke Firebase
       _dbRef.child("tracking").child(widget.idPeserta).set({
         "latitude": position.latitude,
         "longitude": position.longitude,
@@ -90,7 +101,6 @@ class _MapPageState extends State<MapPage> {
             const Text("Radar Pemantauan (OSM)", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
             
-            // --- RENDER PETA OPENSTREETMAP ---
             Expanded(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(15),
@@ -101,27 +111,22 @@ class _MapPageState extends State<MapPage> {
                     initialZoom: 16.0,
                   ),
                   children: [
-                    // Lapisan Peta Dasar dari server OSM (Gratis & Bebas Kuota)
                     TileLayer(
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.example.wisata_app',
                     ),
-                    // Lapisan Penanda (Markers)
                     MarkerLayer(
                       markers: [
-                        // Marker Titik Kumpul (Merah)
+                        // Marker Titik Kumpul (Merah) - Akan bergerak otomatis
                         Marker(
                           point: LatLng(latPos, lonPos),
-                          width: 40,
-                          height: 40,
-                          child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                          width: 40, height: 40,
+                          child: const Icon(Icons.directions_bus, color: Colors.red, size: 40),
                         ),
-                        // Marker Posisi Peserta (Biru) - Muncul jika GPS sudah terkunci
                         if (_lokasiDitemukan)
                           Marker(
                             point: _posisiPeserta,
-                            width: 40,
-                            height: 40,
+                            width: 40, height: 40,
                             child: const Icon(Icons.my_location, color: Colors.blue, size: 30),
                           ),
                       ],
@@ -147,7 +152,11 @@ class _MapPageState extends State<MapPage> {
                         color: _statusGeofence == "AMAN" ? Colors.green : Colors.red,
                       )),
                     const SizedBox(height: 10),
-                    Text(_locationMessage, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text(
+                      _locationMessage, 
+                      textAlign: TextAlign.center, 
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)
+                    ),
                   ],
                 ),
               ),
