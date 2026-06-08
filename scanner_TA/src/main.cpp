@@ -23,8 +23,9 @@ Adafruit_SSD1306 display(128, 64, &Wire, -1);
 ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
 WiFiManager wm;
 
-// --- DATABASE RAM ---
+// --- DATABASE RAM & INGATAN ---
 std::map<String, String> databasePeserta;
+std::map<String, bool> sudahAbsen; // Memori untuk mencegah double scan
 
 // --- STATUS SISTEM ---
 bool isSystemOn = true;
@@ -33,7 +34,7 @@ bool isSDCardReady = false;
 // --- KONFIGURASI SERVER ---
 const char* urlSync = "http://116.193.190.121:8080/api/sync-keys";
 const char* urlPeserta = "http://116.193.190.121:8080/api/peserta/"; 
-const char* urlLog = "http://116.193.190.121:8080/api/logs"; // Rute POST untuk Live Log Panitia
+const char* urlLog = "http://116.193.190.121:8080/api/logs";
 
 // --- KONFIGURASI WAKTU NTP (WIB = GMT+7) ---
 const long  gmtOffset_sec = 7 * 3600; 
@@ -48,6 +49,14 @@ String dapatkanSecret(String idPeserta);
 void simpanLog(String idPeserta, String status);
 void prosesAbsen(String qr);
 int decodeBase32(const char* encoded, uint8_t* decoded);
+void configModeCallback(WiFiManager *myWiFiManager); // Deklarasi fungsi Callback WiFi
+
+// =======================================================================
+// FUNGSI CALLBACK WIFI MANAGER (Agar OLED Jujur)
+// =======================================================================
+void configModeCallback(WiFiManager *myWiFiManager) {
+  tampilOled("PORTAL AKTIF!", "Cari WiFi:\nABSENSI_CAM");
+}
 
 // =======================================================================
 // FUNGSI SETUP UTAMA
@@ -79,16 +88,19 @@ void setup() {
   // 3. KONEKSI WIFI & SINKRONISASI
   tampilOled("WIFI SETUP", "Menghubungkan...");
   delay(500);
+  
+  // Memasang Callback agar jika gagal nyambung, OLED berubah jadi "PORTAL AKTIF"
+  wm.setAPCallback(configModeCallback); 
   wm.setConfigPortalTimeout(60);
+  
   bool wifiConnected = wm.autoConnect("ABSENSI_CAM", "empirise123");
 
   if (wifiConnected) {
-    // ---> AMBIL JAM DARI INTERNET (NTP) <---
     tampilOled("SINKRON JAM", "Ambil Waktu NTP...");
     configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
     
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo, 10000)) { // Tunggu maksimal 10 detik
+    if (!getLocalTime(&timeinfo, 10000)) { 
       tampilOled("JAM GAGAL", "Cek Internet!");
       delay(2000);
     } else {
@@ -146,7 +158,7 @@ void loop() {
 }
 
 // =======================================================================
-// LOGIKA PEMROSESAN ABSEN (DENGAN JAM INTERNAL)
+// LOGIKA PEMROSESAN ABSEN (DENGAN JAM INTERNAL & ANTI-DOUBLE SCAN)
 // =======================================================================
 void prosesAbsen(String qr) {
   qr.trim();
@@ -171,12 +183,16 @@ void prosesAbsen(String qr) {
     return;
   }
 
-  // ---> AMBIL DETIK UNIX DARI MESIN ESP32 (BUKAN RTC) <---
+  // ---> CEGATAN ANTI DOUBLE SCAN <---
+  if (sudahAbsen[idPeserta]) {
+    tampilOled("SUDAH ABSEN!", "Tidak Bisa 2x");
+    return; 
+  }
+
   time_t now;
   time(&now); 
   uint32_t unixTime = now; 
   
-  // Jika mesin mati dan jam mereset (kurang dari tahun 2020), blokir!
   if (unixTime < 1577836800) { 
     tampilOled("ERROR WAKTU", "NTP Belum Sinkron");
     return;
@@ -264,6 +280,22 @@ void muatDatabaseKeRAM() {
     }
   }
   file.close();
+
+  // ---> MUAT INGATAN LOG LAMA AGAR TIDAK LUPA SETELAH RESTART <---
+  sudahAbsen.clear();
+  File fileLog = SD_MMC.open("/log_presensi.csv", FILE_READ);
+  if (fileLog) {
+    while (fileLog.available()) {
+      String lineLog = fileLog.readStringUntil('\n');
+      int firstComma = lineLog.indexOf(',');
+      if (firstComma != -1) {
+        String idLog = lineLog.substring(0, firstComma);
+        idLog.trim();
+        sudahAbsen[idLog] = true; 
+      }
+    }
+    fileLog.close();
+  }
   
   tampilOled("RAM SUKSES!", String(databasePeserta.size()) + " Peserta Siap");
   delay(1500);
@@ -278,6 +310,13 @@ void syncData() {
   int httpCode = http.GET();
   
   if (httpCode == HTTP_CODE_OK) {
+    
+    // ---> HAPUS LOG LAMA & RESET INGATAN SAAT SINKRONISASI <---
+    if (isSDCardReady) {
+      SD_MMC.remove("/log_presensi.csv");
+    }
+    sudahAbsen.clear();
+
     File file = SD_MMC.open("/database_peserta.csv", FILE_WRITE);
     if (file) {
       http.writeToStream(&file);
@@ -311,10 +350,15 @@ String getJamSekarang() {
 }
 
 // =======================================================================
-// FUNGSI LOGGER HYBRID (Penyelamat Panitia)
+// FUNGSI LOGGER HYBRID
 // =======================================================================
 void simpanLog(String idPeserta, String status) {
-  // 1. BACKUP OFFLINE KE SD CARD (Aman jika terjadi mati sinyal)
+  
+  // ---> CATAT KE INGATAN RAM AGAR MENOLAK SCAN KEDUA <---
+  if (status == "VALID") {
+    sudahAbsen[idPeserta] = true;
+  }
+
   if (isSDCardReady) {
     File file = SD_MMC.open("/log_presensi.csv", FILE_APPEND);
     if (file) {
@@ -325,18 +369,15 @@ void simpanLog(String idPeserta, String status) {
     }
   }
 
-  // 2. KIRIM LOG REAL-TIME KE VPS GOLANG (Hanya untuk scan yang sukses)
   if (WiFi.status() == WL_CONNECTED && status == "VALID") {
     HTTPClient http;
-    http.begin(urlLog); // Menggunakan urlLog dari konfigurasi atas
+    http.begin(urlLog); 
     http.addHeader("Content-Type", "application/json");
     
-    // Format JSON khusus untuk Golang
     String payload = "{\"id_peserta\":\"" + idPeserta + "\"}";
     
     int responseCode = http.POST(payload);
     
-    // Opsional: Jika ingin melihat status kiriman di Serial Monitor
     if(responseCode == 200) {
        Serial.println("SUKSES: Log " + idPeserta + " terkirim ke Server!");
     } else {

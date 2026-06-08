@@ -20,39 +20,63 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
     _fetchLogs();
   }
 
-  // Fungsi menyedot data dari Server Golang
   Future<void> _fetchLogs() async {
     setState(() => _isLoading = true);
     try {
       final url = Uri.parse('http://116.193.190.121:8080/api/logs');
       final response = await http.get(url);
-
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
         setState(() {
-          _logs = data['data'] ?? [];
+          _logs = json.decode(response.body)['data'] ?? [];
           _isLoading = false;
         });
-      } else {
-         _showError('Gagal memuat data dari server');
       }
     } catch (e) {
-      _showError('Tidak dapat terhubung ke server Golang');
+      setState(() => _isLoading = false);
     }
   }
 
-  void _showError(String message) {
-    setState(() => _isLoading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+  // FUNSI BARU: Hapus Log
+  Future<void> _hapusLog(String idLog) async {
+    // Tampilkan Dialog Konfirmasi
+    bool confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Hapus Log?"),
+        content: const Text("Peserta ini akan bisa melakukan absen ulang di alat ESP32 jika alat disinkronisasi ulang."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Batal")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true), 
+            child: const Text("Hapus", style: TextStyle(color: Colors.red))
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirm) return;
+
+    // Tembak API DELETE
+    try {
+      final url = Uri.parse('http://116.193.190.121:8080/api/logs/$idLog');
+      final response = await http.delete(url);
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Log dihapus!"), backgroundColor: Colors.green),
+        );
+        _fetchLogs(); // Refresh daftar setelah dihapus
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Gagal menghapus log"), backgroundColor: Colors.red),
+      );
+    }
   }
 
-  // Pemotong teks waktu bawaan Golang (PostgreSQL) agar rapi (HH:MM:SS)
   String _formatWaktu(String rawTime) {
     try {
       DateTime waktu = DateTime.parse(rawTime).toLocal();
-      return "${waktu.hour.toString().padLeft(2, '0')}:${waktu.minute.toString().padLeft(2, '0')}:${waktu.second.toString().padLeft(2, '0')}";
+      return "${waktu.hour.toString().padLeft(2, '0')}:${waktu.minute.toString().padLeft(2, '0')}";
     } catch (e) {
       return rawTime;
     }
@@ -71,11 +95,7 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text("Live Log Server Golang", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                // Tombol Refresh Manual
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.red),
-                  onPressed: _fetchLogs,
-                )
+                IconButton(icon: const Icon(Icons.refresh, color: Colors.red), onPressed: _fetchLogs)
               ],
             ),
           ),
@@ -83,7 +103,7 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Colors.red))
                 : _logs.isEmpty
-                    ? const Center(child: Text("Belum ada data presensi di Database"))
+                    ? const Center(child: Text("Belum ada data presensi"))
                     : ListView.builder(
                         itemCount: _logs.length,
                         itemBuilder: (context, index) {
@@ -91,30 +111,26 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
                             child: ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: Colors.green,
-                                child: Icon(Icons.check, color: Colors.white),
-                              ),
+                              leading: const CircleAvatar(backgroundColor: Colors.green, child: Icon(Icons.check, color: Colors.white)),
                               title: Text(data['nama'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold)),
                               subtitle: Text("ID: ${data['id_peserta']}"),
-                              trailing: Text(_formatWaktu(data['waktu'] ?? ''), style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                              // Tambahan Tombol Hapus di Kanan
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(_formatWaktu(data['waktu'] ?? ''), style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                    onPressed: () => _hapusLog(data['id'].toString()),
+                                  )
+                                ],
+                              ),
                             ),
                           );
                         },
                       ),
           ),
         ],
-      ),
-      // Tombol Backup Scan via HP
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Membuka Kamera HP... (Coming Soon)")),
-          );
-        },
-        backgroundColor: Colors.red[800],
-        icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-        label: const Text("Scan Manual", style: TextStyle(color: Colors.white)),
       ),
     );
   }

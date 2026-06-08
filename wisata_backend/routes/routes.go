@@ -31,5 +31,6 @@ func SetupRoutes(r *gin.Engine) {
 		api.PUT("/panitia/peserta/:id", controllers.EditPesertaManual)
 
         api.POST("/logs", controllers.CatatLog)
+		api.DELETE("/logs/:id", controllers.HapusLog)
 	}
 }
