@@ -60,12 +60,13 @@ func CatatLog(c *gin.Context) {
 
 // 2. Fungsi BARU untuk Menghapus Log
 func HapusLog(c *gin.Context) {
-	idLog := c.Param("id") // Mengambil ID log (Primary Key) dari URL
+    idPeserta := c.Param("id") // Menangkap id_peserta dari Flutter (misal: EMP-001)
 
-	if err := config.DB.Delete(&models.LogPresensi{}, idLog).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal menghapus log"})
-		return
-	}
+    // Perintah GORM diubah untuk memfilter berdasarkan kolom id_peserta
+    if err := config.DB.Where("id_peserta = ?", idPeserta).Delete(&models.LogPresensi{}).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal menghapus log"})
+        return
+    }
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Data absen berhasil dihapus!"})
+    c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Data absen berhasil dihapus!"})
 }

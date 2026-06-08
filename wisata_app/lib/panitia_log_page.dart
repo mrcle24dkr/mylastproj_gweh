@@ -65,10 +65,14 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
           const SnackBar(content: Text("Log dihapus!"), backgroundColor: Colors.green),
         );
         _fetchLogs(); // Refresh daftar setelah dihapus
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Gagal menghapus log dari server"), backgroundColor: Colors.red),
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Gagal menghapus log"), backgroundColor: Colors.red),
+        const SnackBar(content: Text("Terjadi kesalahan jaringan"), backgroundColor: Colors.red),
       );
     }
   }
@@ -121,7 +125,10 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
                                   Text(_formatWaktu(data['waktu'] ?? ''), style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
                                   IconButton(
                                     icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                    onPressed: () => _hapusLog(data['id'].toString()),
+                                    
+                                    // ---> PERBAIKAN BUG ADA DI BARIS BAWAH INI <---
+                                    onPressed: () => _hapusLog(data['id_peserta'].toString()),
+                                    
                                   )
                                 ],
                               ),
