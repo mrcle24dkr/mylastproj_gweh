@@ -29,5 +29,7 @@ func SetupRoutes(r *gin.Engine) {
 		// ---> RUTE BARU UNTUK HAK AKSES PANITIA <---
 		api.GET("/panitia/peserta", controllers.GetAllPeserta)
 		api.PUT("/panitia/peserta/:id", controllers.EditPesertaManual)
+
+        api.POST("/logs", controllers.CatatLog)
 	}
 }

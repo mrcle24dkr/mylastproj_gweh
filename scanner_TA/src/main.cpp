@@ -33,6 +33,7 @@ bool isSDCardReady = false;
 // --- KONFIGURASI SERVER ---
 const char* urlSync = "http://116.193.190.121:8080/api/sync-keys";
 const char* urlPeserta = "http://116.193.190.121:8080/api/peserta/"; 
+const char* urlLog = "http://116.193.190.121:8080/api/logs"; // Rute POST untuk Live Log Panitia
 
 // --- KONFIGURASI WAKTU NTP (WIB = GMT+7) ---
 const long  gmtOffset_sec = 7 * 3600; 
@@ -309,18 +310,45 @@ String getJamSekarang() {
   return String(buffer);
 }
 
+// =======================================================================
+// FUNGSI LOGGER HYBRID (Penyelamat Panitia)
+// =======================================================================
 void simpanLog(String idPeserta, String status) {
-  if (!isSDCardReady) return;
-  
-  File file = SD_MMC.open("/log_presensi.csv", FILE_APPEND);
-  if (file) {
-    file.print(idPeserta); file.print(",");
-    file.print(status); file.print(",");
-    file.println(getJamSekarang());
-    file.close();
+  // 1. BACKUP OFFLINE KE SD CARD (Aman jika terjadi mati sinyal)
+  if (isSDCardReady) {
+    File file = SD_MMC.open("/log_presensi.csv", FILE_APPEND);
+    if (file) {
+      file.print(idPeserta); file.print(",");
+      file.print(status); file.print(",");
+      file.println(getJamSekarang());
+      file.close();
+    }
+  }
+
+  // 2. KIRIM LOG REAL-TIME KE VPS GOLANG (Hanya untuk scan yang sukses)
+  if (WiFi.status() == WL_CONNECTED && status == "VALID") {
+    HTTPClient http;
+    http.begin(urlLog); // Menggunakan urlLog dari konfigurasi atas
+    http.addHeader("Content-Type", "application/json");
+    
+    // Format JSON khusus untuk Golang
+    String payload = "{\"id_peserta\":\"" + idPeserta + "\"}";
+    
+    int responseCode = http.POST(payload);
+    
+    // Opsional: Jika ingin melihat status kiriman di Serial Monitor
+    if(responseCode == 200) {
+       Serial.println("SUKSES: Log " + idPeserta + " terkirim ke Server!");
+    } else {
+       Serial.println("GAGAL: Kirim log, HTTP Code: " + String(responseCode));
+    }
+    http.end();
   }
 }
 
+// =======================================================================
+// ALGORITMA DECODE & TAMPILAN OLED
+// =======================================================================
 int decodeBase32(const char* encoded, uint8_t* decoded) {
   int buffer = 0, bitsLeft = 0, count = 0;
   for (const char* ptr = encoded; *ptr; ++ptr) {
