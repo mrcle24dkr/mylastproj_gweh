@@ -2,11 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
-// ---> INI IMPORT YANG BIKIN PROVIDER NGGAK ERROR <---
 import 'package:provider/provider.dart'; 
-// Pastikan path ini sesuai letak file theme_provider.dart lu.
-// Kalau error, ganti '../providers/theme_provider.dart' jadi 'package:nama_project_lu/providers/theme_provider.dart'
 import 'providers/theme_provider.dart'; 
 
 class AkunPanitiaPage extends StatefulWidget {
@@ -19,40 +15,28 @@ class AkunPanitiaPage extends StatefulWidget {
 class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
   final TextEditingController _passLamaController = TextEditingController();
   final TextEditingController _passBaruController = TextEditingController();
+  final TextEditingController _idRoleController = TextEditingController(); // Controller untuk fitur Ubah Role
   
   bool _isLoading = false;
-  // Variabel bool _isDarkMode = false; 
 
+  // FUNGSI GANTI PASSWORD PANITIA
   Future<void> _gantiPasswordPanitia() async {
+    // ... (Fungsi ganti password sama persis seperti sebelumnya) ...
     if (_passLamaController.text.isEmpty || _passBaruController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Kata sandi tidak boleh kosong!"), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kata sandi tidak boleh kosong!"), backgroundColor: Colors.red));
       return;
     }
-
     if (mounted) setState(() => _isLoading = true);
-
     try {
       final url = Uri.parse('http://116.193.190.121:8080/api/user/password');
-      final response = await http.put(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({
-          "id_peserta": "PANITIA", 
-          "password_lama": _passLamaController.text,
-          "password_baru": _passBaruController.text,
-        }),
+      final response = await http.put(url, headers: {"Content-Type": "application/json"},
+        body: json.encode({"id_peserta": "PANITIA", "password_lama": _passLamaController.text, "password_baru": _passBaruController.text}),
       );
-
       if (!mounted) return;
       final data = json.decode(response.body);
-
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: Colors.green));
-        _passLamaController.clear();
-        _passBaruController.clear();
-        Navigator.pop(context);
+        _passLamaController.clear(); _passBaruController.clear(); Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Terjadi kesalahan'), backgroundColor: Colors.red));
       }
@@ -64,6 +48,82 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
     }
   }
 
+  // FUNGSI UBAH ROLE JADI PANITIA
+  Future<void> _ubahRoleJadiPanitia() async {
+    if (_idRoleController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ID Peserta tidak boleh kosong!"), backgroundColor: Colors.red));
+      return;
+    }
+
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      // TODO: Sesuaikan URL Endpoint dengan API Golang kamu untuk update Role
+      final url = Uri.parse('http://116.193.190.121:8080/api/user/role'); 
+      final response = await http.put(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "id_peserta": _idRoleController.text,
+          "role": "PANITIA" // Payload mengubah role
+        }),
+      );
+
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Berhasil! ${_idRoleController.text} sekarang adalah Panitia."), backgroundColor: Colors.green));
+        _idRoleController.clear();
+        Navigator.pop(context); // Tutup dialog
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal mengubah role"), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal terhubung ke server"), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // DIALOG UBAH ROLE
+  void _tampilkanDialogUbahRole() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setStateDialog) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text("Ubah Role ke Panitia", style: TextStyle(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Masukkan ID Peserta yang ingin diangkat menjadi Panitia/Admin.", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: _idRoleController, 
+                  decoration: const InputDecoration(labelText: "ID Peserta (Contoh: EMP-001)", border: OutlineInputBorder())
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal", style: TextStyle(color: Colors.grey))),
+              ElevatedButton(
+                onPressed: _isLoading ? null : () async {
+                  setStateDialog(() => _isLoading = true);
+                  await _ubahRoleJadiPanitia();
+                  if (mounted) setStateDialog(() => _isLoading = false);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: _isLoading ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text("Jadikan Panitia", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  // DIALOG GANTI PASSWORD
   void _tampilkanDialogPassword() {
     showDialog(
       context: context,
@@ -83,7 +143,11 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
               ElevatedButton(
-                onPressed: _isLoading ? null : _gantiPasswordPanitia,
+                onPressed: _isLoading ? null : () async {
+                  setStateDialog(() => _isLoading = true);
+                  await _gantiPasswordPanitia();
+                  if (mounted) setStateDialog(() => _isLoading = false);
+                },
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD07044)),
                 child: _isLoading ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text("Simpan", style: TextStyle(color: Colors.white)),
               ),
@@ -129,11 +193,9 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ---> INI KUNCI UTAMANYA: PANGGIL PROVIDER DI DALAM BUILD <---
     final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDarkMode = themeProvider.isDarkMode; // Menggantikan _isDarkMode yang lama
+    final isDarkMode = themeProvider.isDarkMode; 
 
-    // Warna sekarang mengikuti isDarkMode dari Provider
     Color bgColor = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     Color textColor = isDarkMode ? Colors.white : Colors.black;
 
@@ -150,29 +212,33 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
               const Text("Administrator Sistem", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
               const SizedBox(height: 30),
 
+              // KELOMPOK 1: MANAJEMEN
               _buildMenuCard(children: [
-                _buildMenuItem(icon: Icons.manage_accounts, title: "KELOLA MASTER DATA", onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Coming Soon!")))),
+                // ---> MENU BARU: UBAH ROLE <---
+                _buildMenuItem(icon: Icons.admin_panel_settings_outlined, title: "UBAH ROLE PESERTA", onTap: _tampilkanDialogUbahRole),
               ]),
 
+              // KELOMPOK 2: PERSONAL & SAFETY
               _buildMenuCard(children: [
                 _buildMenuItem(icon: Icons.badge, title: "ID CARD", showBorder: true, onTap: () {}),
                 _buildMenuItem(icon: Icons.phone_in_talk, title: "EMERGENCY CALL", showBorder: true, onTap: () {}),
                 _buildMenuItem(icon: Icons.pin_drop, title: "GPS & SYSTEM STATUS", onTap: () {}),
               ]),
 
+              // KELOMPOK 3: SETTINGS
               _buildMenuCard(children: [
                 _buildMenuItem(icon: Icons.password, title: "CHANGE PASSWORD", showBorder: true, onTap: _tampilkanDialogPassword),
                 _buildMenuItem(icon: Icons.security, title: "PRIVACY & SECURE", onTap: () {}),
               ]),
 
+              // KELOMPOK 4: MODE & FAQ
               _buildMenuCard(children: [
-                // ---> FUNGSI TOMBOL CHANGE MODE SUDAH DIPERBARUI <---
                 _buildMenuItem(
                   icon: isDarkMode ? Icons.light_mode : Icons.dark_mode, 
                   title: "CHANGE MODE", 
                   showBorder: true, 
                   onTap: () {
-                    themeProvider.toggleTheme(); // Memanggil fungsi ganti tema global
+                    themeProvider.toggleTheme();
                   }
                 ),
                 _buildMenuItem(icon: Icons.help_outline, title: "HELP & FAQ", onTap: () {}),

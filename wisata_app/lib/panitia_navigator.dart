@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'panitia_log_page.dart';
 import 'panitia_map_page.dart';
 import 'akun_panitia_page.dart';
+import 'panitia_master_data_page.dart'; // ---> TAMBAHKAN IMPORT INI <---
 
 class PanitiaNavigator extends StatefulWidget {
   const PanitiaNavigator({super.key});
@@ -15,10 +16,10 @@ class _PanitiaNavigatorState extends State<PanitiaNavigator> {
   int _selectedIndex = 1; // Default ke tab Live Log
 
   final List<Widget> _pages = const [
-    Center(child: Text("Halaman Input Data & Upload CSV\n(Dikerjakan Besok)", textAlign: TextAlign.center)), // Tab 0
-    PanitiaLogPage(), // Tab 1
-    PanitiaMapPage(), // Tab 2
-    AkunPanitiaPage(), // Tab 3
+    PanitiaMasterDataPage(), // ---> UBAH BARIS INI <---
+    PanitiaLogPage(), 
+    PanitiaMapPage(), 
+    AkunPanitiaPage(), 
   ];
 
   void _onItemTapped(int index) {
@@ -40,9 +41,9 @@ class _PanitiaNavigatorState extends State<PanitiaNavigator> {
       ),
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed, // Penting jika tab > 3 agar tidak error visual
+        type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.group_add), label: 'Tambah'),
+          BottomNavigationBarItem(icon: Icon(Icons.group_add), label: 'Master Data'), // Ubah label biar sesuai
           BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Live Log'),
           BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Radar'),
           BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings), label: 'Sistem'),

@@ -30,30 +30,130 @@ type EditPesertaRequest struct {
 	IDBus       *uint  `json:"id_bus"`
 }
 
-// Mengedit data diri peserta spesifik
-func EditPesertaManual(c *gin.Context) {
-	idTarget := c.Param("id")
-	var req EditPesertaRequest
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
+// Struct khusus untuk menangkap data dari Flutter (POST & PUT)
+type InputDataPeserta struct {
+	IDPeserta   string `json:"id_peserta"`
+	NamaLengkap string `json:"nama_lengkap"`
+	Password    string `json:"password"`
+	Role        string `json:"role"`
+}
+
+// 1. FUNGSI TAMBAH PESERTA (POST)
+func TambahPeserta(c *gin.Context) {
+	var input InputDataPeserta
+
+	// Tangkap data JSON dari Flutter
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "gagal",
+			"message": "Format data tidak sesuai",
+		})
 		return
 	}
 
-	var user models.Peserta
-	if err := config.DB.Where("id_peserta = ?", idTarget).First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "Peserta tidak ditemukan"})
+	// Opsional: Cek apakah ID Peserta sudah ada di database agar tidak bentrok
+	var existing models.Peserta
+	if err := config.DB.Where("id_peserta = ?", input.IDPeserta).First(&existing).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{
+			"status":  "gagal",
+			"message": "ID Peserta sudah terdaftar!",
+		})
 		return
 	}
 
-	// Update spesifik ke kolom yang diizinkan
-	config.DB.Model(&user).Updates(models.Peserta{
-		NamaLengkap: req.NamaLengkap,
-		IDBus:       req.IDBus,
+	// Bentuk objek peserta baru
+	pesertaBaru := models.Peserta{
+		IDPeserta:   input.IDPeserta,
+		NamaLengkap: input.NamaLengkap,
+		Role:        input.Role,
+	}
+
+	// Simpan ke Database
+	if err := config.DB.Create(&pesertaBaru).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "gagal",
+			"message": "Gagal menyimpan data ke database",
+		})
+		return
+	}
+
+	// Beri respon sukses sesuai formatmu
+	c.JSON(http.StatusCreated, gin.H{
+		"status":  "sukses",
+		"message": "Data peserta berhasil ditambahkan!",
+		"data":    pesertaBaru,
 	})
+}
+
+// 2. FUNGSI EDIT PESERTA (PUT)
+func EditPesertaManual(c *gin.Context) {
+	idPeserta := c.Param("id")
+	var input InputDataPeserta
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "gagal",
+			"message": "Format data tidak sesuai",
+		})
+		return
+	}
+
+	var peserta models.Peserta
+
+	// Cari peserta berdasarkan ID
+	if err := config.DB.First(&peserta, "id_peserta = ?", idPeserta).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "gagal",
+			"message": "Data peserta tidak ditemukan!",
+		})
+		return
+	}
+
+	// Update data namanya
+	peserta.NamaLengkap = input.NamaLengkap
+
+	// Simpan perubahan ke Database
+	if err := config.DB.Save(&peserta).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "gagal",
+			"message": "Gagal memperbarui data peserta",
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "Data peserta berhasil dikoreksi!",
+		"status":  "sukses",
+		"message": "Data peserta berhasil diupdate!",
+		"data":    peserta,
+	})
+}
+
+// 3. FUNGSI HAPUS PESERTA (DELETE)
+func HapusPeserta(c *gin.Context) {
+	idPeserta := c.Param("id")
+	var peserta models.Peserta
+
+	// Cari dulu apakah datanya ada
+	if err := config.DB.First(&peserta, "id_peserta = ?", idPeserta).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "gagal",
+			"message": "Data peserta tidak ditemukan!",
+		})
+		return
+	}
+
+	// Hapus datanya
+	if err := config.DB.Delete(&peserta).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "gagal",
+			"message": "Gagal menghapus data peserta",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "sukses",
+		"message": "Peserta berhasil dihapus!",
 	})
 }

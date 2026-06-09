@@ -9,6 +9,7 @@ import (
 )
 
 func GetPesertaByID(c *gin.Context) {
+	
 	// Ambil ID dari URL (misal: /api/peserta/P-001)
 	idPeserta := c.Param("id")
 
@@ -30,3 +31,4 @@ func GetPesertaByID(c *gin.Context) {
 		"data":   peserta,
 	})
 }
+
