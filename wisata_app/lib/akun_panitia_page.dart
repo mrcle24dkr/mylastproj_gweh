@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+// ---> INI IMPORT YANG BIKIN PROVIDER NGGAK ERROR <---
+import 'package:provider/provider.dart'; 
+// Pastikan path ini sesuai letak file theme_provider.dart lu.
+// Kalau error, ganti '../providers/theme_provider.dart' jadi 'package:nama_project_lu/providers/theme_provider.dart'
+import 'providers/theme_provider.dart'; 
+
 class AkunPanitiaPage extends StatefulWidget {
   const AkunPanitiaPage({super.key});
 
@@ -13,7 +19,9 @@ class AkunPanitiaPage extends StatefulWidget {
 class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
   final TextEditingController _passLamaController = TextEditingController();
   final TextEditingController _passBaruController = TextEditingController();
+  
   bool _isLoading = false;
+  // Variabel bool _isDarkMode = false; 
 
   Future<void> _gantiPasswordPanitia() async {
     if (_passLamaController.text.isEmpty || _passBaruController.text.isEmpty) {
@@ -23,7 +31,7 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
 
     try {
       final url = Uri.parse('http://116.193.190.121:8080/api/user/password');
@@ -31,108 +39,157 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
         url,
         headers: {"Content-Type": "application/json"},
         body: json.encode({
-          "id_peserta": "PANITIA", // Langsung tembak ID Panitia
+          "id_peserta": "PANITIA", 
           "password_lama": _passLamaController.text,
           "password_baru": _passBaruController.text,
         }),
       );
 
+      if (!mounted) return;
       final data = json.decode(response.body);
 
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message']), backgroundColor: Colors.green),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message']), backgroundColor: Colors.green));
         _passLamaController.clear();
         _passBaruController.clear();
+        Navigator.pop(context);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? 'Terjadi kesalahan'), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Terjadi kesalahan'), backgroundColor: Colors.red));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Gagal terhubung ke server Golang"), backgroundColor: Colors.red),
-      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal terhubung ke server"), backgroundColor: Colors.red));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _tampilkanDialogPassword() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setStateDialog) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text("Change Password", style: TextStyle(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: _passLamaController, obscureText: true, decoration: const InputDecoration(labelText: "Current Password", border: OutlineInputBorder())),
+                const SizedBox(height: 15),
+                TextField(controller: _passBaruController, obscureText: true, decoration: const InputDecoration(labelText: "New Password", border: OutlineInputBorder())),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _gantiPasswordPanitia,
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD07044)),
+                child: _isLoading ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text("Simpan", style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  Widget _buildMenuCard({required List<Widget> children}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE28B5B), Color(0xFFD07044)],
+          begin: Alignment.centerLeft, end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), spreadRadius: 1, blurRadius: 5, offset: const Offset(0, 3))],
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildMenuItem({required IconData icon, required String title, required VoidCallback onTap, bool showBorder = false}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        decoration: BoxDecoration(border: showBorder ? const Border(bottom: BorderSide(color: Colors.white30, width: 1)) : null),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 24),
+            const SizedBox(width: 15),
+            Expanded(child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+            const Icon(Icons.arrow_right, color: Colors.white),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // ---> INI KUNCI UTAMANYA: PANGGIL PROVIDER DI DALAM BUILD <---
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode; // Menggantikan _isDarkMode yang lama
+
+    // Warna sekarang mengikuti isDarkMode dari Provider
+    Color bgColor = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    Color textColor = isDarkMode ? Colors.white : Colors.black;
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            const CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.black87,
-              child: Icon(Icons.admin_panel_settings, size: 60, color: Colors.amber),
-            ),
-            const SizedBox(height: 15),
-            const Text("PANITIA", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            const Text("Administrator Sistem Empirise", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 30),
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 30),
+              const CircleAvatar(radius: 50, backgroundColor: Colors.black87, child: Icon(Icons.admin_panel_settings, size: 60, color: Colors.amber)),
+              const SizedBox(height: 15),
+              Text("PANITIA", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: textColor)),
+              const Text("Administrator Sistem", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 30),
 
-            // MENU MANAJEMEN PESERTA (Fitur Eksklusif Panitia)
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                leading: const Icon(Icons.manage_accounts, color: Colors.blue, size: 40),
-                title: const Text("Kelola Master Data", style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text("Edit nama, pindah bus, atau koreksi data mahasiswa."),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {
-                  // TODO: Besok kita buatkan halaman MasterDataPage
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Membuka Master Data... (Coming Soon)")),
-                  );
-                },
-              ),
-            ),
-            
-            const SizedBox(height: 20),
+              _buildMenuCard(children: [
+                _buildMenuItem(icon: Icons.manage_accounts, title: "KELOLA MASTER DATA", onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Coming Soon!")))),
+              ]),
 
-            // FORM GANTI PASSWORD PANITIA
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text("Ganti Kata Sandi Admin", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: _passLamaController,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: "Kata Sandi Saat Ini", border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: _passBaruController,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: "Kata Sandi Baru", border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _gantiPasswordPanitia,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.black87, padding: const EdgeInsets.symmetric(vertical: 15)),
-                      child: _isLoading 
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text("SIMPAN PASSWORD", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    )
-                  ],
+              _buildMenuCard(children: [
+                _buildMenuItem(icon: Icons.badge, title: "ID CARD", showBorder: true, onTap: () {}),
+                _buildMenuItem(icon: Icons.phone_in_talk, title: "EMERGENCY CALL", showBorder: true, onTap: () {}),
+                _buildMenuItem(icon: Icons.pin_drop, title: "GPS & SYSTEM STATUS", onTap: () {}),
+              ]),
+
+              _buildMenuCard(children: [
+                _buildMenuItem(icon: Icons.password, title: "CHANGE PASSWORD", showBorder: true, onTap: _tampilkanDialogPassword),
+                _buildMenuItem(icon: Icons.security, title: "PRIVACY & SECURE", onTap: () {}),
+              ]),
+
+              _buildMenuCard(children: [
+                // ---> FUNGSI TOMBOL CHANGE MODE SUDAH DIPERBARUI <---
+                _buildMenuItem(
+                  icon: isDarkMode ? Icons.light_mode : Icons.dark_mode, 
+                  title: "CHANGE MODE", 
+                  showBorder: true, 
+                  onTap: () {
+                    themeProvider.toggleTheme(); // Memanggil fungsi ganti tema global
+                  }
+                ),
+                _buildMenuItem(icon: Icons.help_outline, title: "HELP & FAQ", onTap: () {}),
+              ]),
+              
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.pushReplacementNamed(context, '/'),
+                  icon: const Icon(Icons.logout, color: Colors.red),
+                  label: const Text("LOG OUT", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
                 ),
               ),
-            )
-          ],
+              const SizedBox(height: 30),
+            ],
+          ),
         ),
       ),
     );

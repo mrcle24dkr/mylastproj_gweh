@@ -2,10 +2,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+// ---> 1. IMPORT PROVIDER DITAMBAHKAN DI SINI <---
+import 'package:provider/provider.dart'; 
+
 import 'login_page.dart';
 import 'qr_page.dart';
 import 'map_page.dart';
 import 'akun_peserta_page.dart';
+import 'providers/theme_provider.dart';
 
 void main() async {
   // Wajib dipanggil sebelum inisialisasi Firebase
@@ -37,7 +42,12 @@ void main() async {
     )
   ); 
   
-  runApp(const WisataApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => ThemeProvider(),
+      child: const WisataApp(),
+    ),
+  );
 }
 
 class WisataApp extends StatelessWidget {
@@ -45,12 +55,35 @@ class WisataApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ---> 2. DEFINISIKAN THEMEPROVIDER DI SINI <---
+    // Membaca status tema dari ThemeProvider yang dibuat di runApp
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
-      title: 'Aplikasi Pemantauan Wisata',
+      title: 'Empirise Jalan-Jalan',
       debugShowCheckedModeBanner: false,
+      
+      // KUNCI UTAMA DARK MODE GLOBAL
+      themeMode: themeProvider.themeMode,
+      
+      // Tema Terang (Light Mode)
       theme: ThemeData(
-        primarySwatch: Colors.red,
-        scaffoldBackgroundColor: Colors.white,
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: Colors.grey[100],
+        cardColor: Colors.white,
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Colors.black),
+        ),
+      ),
+      
+      // Tema Gelap (Dark Mode)
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        cardColor: const Color(0xFF1E1E1E),
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Colors.white),
+        ),
       ),
       // Aplikasi pertama kali dibuka akan langsung masuk ke LoginPage
       home: const LoginPage(),

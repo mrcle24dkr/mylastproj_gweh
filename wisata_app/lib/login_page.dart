@@ -97,7 +97,7 @@ class _LoginPageState extends State<LoginPage> {
                 Icon(Icons.security, size: 80, color: Colors.red[800]),
                 const SizedBox(height: 20),
                 const Text(
-                  "Sistem Presensi\nPT Empirise",
+                  "Sistem Presensi\nPT Empirise Karya Hutama",
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black87),
                 ),
@@ -108,7 +108,7 @@ class _LoginPageState extends State<LoginPage> {
                   controller: _idController,
                   textCapitalization: TextCapitalization.characters, // Otomatis huruf besar
                   decoration: InputDecoration(
-                    labelText: "ID Pengguna (Peserta / Panitia)",
+                    labelText: "ID Pengguna",
                     prefixIcon: const Icon(Icons.person_outline),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
@@ -149,11 +149,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 
                 const SizedBox(height: 20),
-                const Text(
-                  "Gunakan ID 'PANITIA' untuk masuk sebagai panitia.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                )
               ],
             ),
           ),
