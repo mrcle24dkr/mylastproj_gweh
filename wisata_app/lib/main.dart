@@ -16,6 +16,7 @@ void main() async {
   // Wajib dipanggil sebelum inisialisasi Firebase
   WidgetsFlutterBinding.ensureInitialized(); 
   
+  debugPrint("1. Mulai load env...");
   await dotenv.load(fileName: ".env");
   
   // Mengambil data dari dotenv
@@ -29,19 +30,33 @@ void main() async {
   final String measurementId = dotenv.env['FIREBASE_MEASUREMENT_ID'] ?? '';
 
   // Menyalakan koneksi ke Firebase
-  await Firebase.initializeApp(
-    options: FirebaseOptions(
-      apiKey: apiKey,
-      authDomain: authDomain,
-      databaseURL: databaseURL,
-      projectId: projectId,
-      storageBucket: storageBucket,
-      messagingSenderId: messagingSenderId,
-      appId: appId,
-      measurementId: measurementId,
-    )
-  ); 
+  // Menyalakan koneksi ke Firebase (dengan pengecekan)
+  debugPrint("2. Mulai load Firebase...");
+  try {
+    await Firebase.initializeApp(
+      options: FirebaseOptions(
+        apiKey: apiKey,
+        authDomain: authDomain,
+        databaseURL: databaseURL,
+        projectId: projectId,
+        storageBucket: storageBucket,
+        messagingSenderId: messagingSenderId,
+        appId: appId,
+        measurementId: measurementId,
+      ),
+    );
+    debugPrint("Firebase berhasil diinisialisasi secara manual.");
+  } catch (e) {
+    // Jika mendeteksi error duplikat, abaikan dan izinkan aplikasi lanjut berjalan
+    if (e.toString().contains('duplicate-app')) {
+      debugPrint("Firebase [DEFAULT] sudah dinyalakan oleh sistem Android. Aman untuk dilewati.");
+    } else {
+      // Jika error-nya karena hal lain (misal: API Key salah), biarkan tetap meledak agar ketahuan
+      rethrow;
+    }
+  }
   
+  debugPrint("3. Firebase selesai, memanggil runApp...");
   runApp(
     ChangeNotifierProvider(
       create: (context) => ThemeProvider(),

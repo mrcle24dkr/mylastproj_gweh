@@ -84,10 +84,11 @@ class _PanitiaMasterDataPageState extends State<PanitiaMasterDataPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Atur URL: Jika Edit tembak ke URL dengan ID, Jika Tambah tembak ke URL dasar
+      // ---> PERBAIKAN BUG URL ADA DI SINI <---
+      // Menggunakan /$id agar ID Peserta masuk ke dalam alamat URL
       final url = isEdit 
-          ? Uri.parse('http://116.193.190.121:8080/api/panitia/peserta/:id') // Asumsi Endpoint PUT
-          : Uri.parse('http://116.193.190.121:8080/api/panitia/peserta');    // Asumsi Endpoint POST
+          ? Uri.parse('http://116.193.190.121:8080/api/panitia/peserta/$id') 
+          : Uri.parse('http://116.193.190.121:8080/api/panitia/peserta');    
 
       // Bentuk JSON yang akan dikirim ke Golang
       final payload = json.encode({
