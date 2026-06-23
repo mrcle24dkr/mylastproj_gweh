@@ -2,24 +2,22 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-// ---> 1. IMPORT PROVIDER DITAMBAHKAN DI SINI <---
 import 'package:provider/provider.dart'; 
+import 'package:shared_preferences/shared_preferences.dart'; // ---> TAMBAHAN IMPORT
 
 import 'login_page.dart';
+import 'panitia_navigator.dart'; // ---> TAMBAHAN IMPORT (Wajib ada biar bisa bypass ke Panitia)
 import 'qr_page.dart';
 import 'map_page.dart';
 import 'akun_peserta_page.dart';
 import 'providers/theme_provider.dart';
 
 void main() async {
-  // Wajib dipanggil sebelum inisialisasi Firebase
   WidgetsFlutterBinding.ensureInitialized(); 
   
   debugPrint("1. Mulai load env...");
   await dotenv.load(fileName: ".env");
   
-  // Mengambil data dari dotenv
   final String apiKey = dotenv.env['FIREBASE_API_KEY'] ?? '';
   final String authDomain = dotenv.env['FIREBASE_AUTH_DOMAIN'] ?? '';
   final String databaseURL = dotenv.env['FIREBASE_DATABASE_URL'] ?? '';
@@ -29,8 +27,6 @@ void main() async {
   final String appId = dotenv.env['FIREBASE_APP_ID'] ?? '';
   final String measurementId = dotenv.env['FIREBASE_MEASUREMENT_ID'] ?? '';
 
-  // Menyalakan koneksi ke Firebase
-  // Menyalakan koneksi ke Firebase (dengan pengecekan)
   debugPrint("2. Mulai load Firebase...");
   try {
     await Firebase.initializeApp(
@@ -47,41 +43,56 @@ void main() async {
     );
     debugPrint("Firebase berhasil diinisialisasi secara manual.");
   } catch (e) {
-    // Jika mendeteksi error duplikat, abaikan dan izinkan aplikasi lanjut berjalan
     if (e.toString().contains('duplicate-app')) {
       debugPrint("Firebase [DEFAULT] sudah dinyalakan oleh sistem Android. Aman untuk dilewati.");
     } else {
-      // Jika error-nya karena hal lain (misal: API Key salah), biarkan tetap meledak agar ketahuan
       rethrow;
     }
   }
+
+  // ---> 3. CEK SESI LOGIN DI MEMORI HP <---
+  debugPrint("3. Mengecek sesi login...");
+  final prefs = await SharedPreferences.getInstance();
+  final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+  final String role = prefs.getString('role') ?? '';
+  final String idPeserta = prefs.getString('id_peserta') ?? '';
+
+  // Penentuan rute awal
+  Widget halamanPertama = const LoginPage();
   
-  debugPrint("3. Firebase selesai, memanggil runApp...");
+  if (isLoggedIn) {
+    if (role == 'PANITIA') {
+      halamanPertama = const PanitiaNavigator();
+    } else if (role == 'PESERTA' && idPeserta.isNotEmpty) {
+      halamanPertama = MainNavigator(idPeserta: idPeserta);
+    }
+  }
+  
+  debugPrint("4. Memanggil runApp...");
   runApp(
     ChangeNotifierProvider(
       create: (context) => ThemeProvider(),
-      child: const WisataApp(),
+      // Lempar halamanPertama ke dalam WisataApp
+      child: WisataApp(halamanPertama: halamanPertama),
     ),
   );
 }
 
 class WisataApp extends StatelessWidget {
-  const WisataApp({super.key});
+  final Widget halamanPertama; // Menerima lemparan halaman dari main()
+
+  const WisataApp({super.key, required this.halamanPertama});
 
   @override
   Widget build(BuildContext context) {
-    // ---> 2. DEFINISIKAN THEMEPROVIDER DI SINI <---
-    // Membaca status tema dari ThemeProvider yang dibuat di runApp
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
       title: 'Empirise Jalan-Jalan',
       debugShowCheckedModeBanner: false,
       
-      // KUNCI UTAMA DARK MODE GLOBAL
       themeMode: themeProvider.themeMode,
       
-      // Tema Terang (Light Mode)
       theme: ThemeData(
         brightness: Brightness.light,
         scaffoldBackgroundColor: Colors.grey[100],
@@ -91,7 +102,6 @@ class WisataApp extends StatelessWidget {
         ),
       ),
       
-      // Tema Gelap (Dark Mode)
       darkTheme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF121212),
@@ -100,14 +110,15 @@ class WisataApp extends StatelessWidget {
           bodyLarge: TextStyle(color: Colors.white),
         ),
       ),
-      // Aplikasi pertama kali dibuka akan langsung masuk ke LoginPage
-      home: const LoginPage(),
+      
+      // Gunakan halaman yang sudah diseleksi oleh SharedPreferences
+      home: halamanPertama, 
     );
   }
 }
 
 class MainNavigator extends StatefulWidget {
-  final String idPeserta; // Menerima ID dinamis dari halaman Login
+  final String idPeserta; 
   
   const MainNavigator({super.key, required this.idPeserta});
 
@@ -118,7 +129,6 @@ class MainNavigator extends StatefulWidget {
 class _MainNavigatorState extends State<MainNavigator> {
   int _selectedIndex = 0;
 
-  // Daftar halaman peserta, ID diteruskan ke QrPage dan MapPage
   late final List<Widget> _pages = [
     QrPage(idPeserta: widget.idPeserta),
     MapPage(idPeserta: widget.idPeserta),

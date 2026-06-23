@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart'; // ---> IMPORT TAMBAHAN
+import 'login_page.dart'; // ---> IMPORT TAMBAHAN
 
 class AkunPesertaPage extends StatefulWidget {
   final String idPeserta;
@@ -35,11 +37,9 @@ class _AkunPesertaPageState extends State<AkunPesertaPage> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body)['data'];
         
-        // Cek mounted sebelum update UI (Best Practice)
         if (mounted) {
           setState(() {
             namaPeserta = data['nama_lengkap'] ?? data['NamaLengkap'] ?? 'Unknown';
-            // Jika backend sudah mengirim data bus, bisa diubah di sini
           });
         }
       }
@@ -52,7 +52,7 @@ class _AkunPesertaPageState extends State<AkunPesertaPage> {
     }
   }
 
-  // FUNGSI GANTI PASSWORD (MENGGUNAKAN API LAMA)
+  // FUNGSI GANTI PASSWORD 
   Future<void> _gantiPassword() async {
     if (_passLamaController.text.isEmpty || _passBaruController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,7 +75,6 @@ class _AkunPesertaPageState extends State<AkunPesertaPage> {
         }),
       );
 
-      // ---> PERBAIKAN BUG ASYNC GAPS <---
       if (!mounted) return;
 
       final data = json.decode(response.body);
@@ -86,25 +85,37 @@ class _AkunPesertaPageState extends State<AkunPesertaPage> {
         );
         _passLamaController.clear();
         _passBaruController.clear();
-        Navigator.pop(context); // Tutup dialog jika sukses
+        Navigator.pop(context); 
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(data['message'] ?? 'Terjadi kesalahan'), backgroundColor: Colors.red),
         );
       }
     } catch (e) {
-      // ---> PERBAIKAN BUG ASYNC GAPS <---
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Gagal terhubung ke server"), backgroundColor: Colors.red),
       );
     } finally {
-      // ---> PERBAIKAN BUG ASYNC GAPS <---
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  // ---> FUNGSI BARU: LOGOUT YANG MENGHAPUS SESI MEMORI <---
+  Future<void> _prosesLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); // Hapus memori login dari HP
+
+    if (!mounted) return;
+    
+    // Hapus semua rute layar dan lempar kembali ke Login Page
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+      (route) => false,
+    );
   }
 
   // TAMPILAN POP-UP UNTUK GANTI PASSWORD
@@ -112,7 +123,7 @@ class _AkunPesertaPageState extends State<AkunPesertaPage> {
     showDialog(
       context: context,
       builder: (context) {
-        return StatefulBuilder( // Agar indikator loading di dalam dialog bisa update
+        return StatefulBuilder( 
           builder: (context, setStateDialog) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -202,7 +213,6 @@ class _AkunPesertaPageState extends State<AkunPesertaPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Definisi warna dasar berdasarkan mode
     Color bgColor = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     Color textColor = _isDarkMode ? Colors.white : Colors.black;
 
@@ -288,10 +298,9 @@ class _AkunPesertaPageState extends State<AkunPesertaPage> {
               // 5. CHANGE MODE & FAQ
               _buildMenuCard(
                 children: [
-                  // FITUR CHANGE MODE
                   _buildMenuItem(icon: _isDarkMode ? Icons.light_mode : Icons.dark_mode, title: "CHANGE MODE", showBorder: true, onTap: () {
                     setState(() {
-                      _isDarkMode = !_isDarkMode; // Mengubah state dari terang ke gelap atau sebaliknya
+                      _isDarkMode = !_isDarkMode; 
                     });
                   }),
                   _buildMenuItem(icon: Icons.help_outline, title: "HELP & FAQ", onTap: () {}),
@@ -314,7 +323,8 @@ class _AkunPesertaPageState extends State<AkunPesertaPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 child: InkWell(
-                  onTap: () => Navigator.pushReplacementNamed(context, '/'), // Kembali ke Login Page
+                  // ---> TOMBOL LOGOUT MEMANGGIL FUNGSI _prosesLogout <---
+                  onTap: _prosesLogout, 
                   borderRadius: BorderRadius.circular(15),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 15),
@@ -340,7 +350,7 @@ class _AkunPesertaPageState extends State<AkunPesertaPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 30), // Ruang lega untuk Bottom Navigation Bar
+              const SizedBox(height: 30), 
             ],
           ),
         ),

@@ -1,5 +1,6 @@
 // Lokasi File: lib/login_page.dart
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // ---> TAMBAHAN IMPORT
 import 'main.dart'; // Memanggil MainNavigator (Peserta)
 import 'panitia_navigator.dart'; // Memanggil PanitiaNavigator (Panitia)
 import 'package:http/http.dart' as http;
@@ -21,7 +22,6 @@ class _LoginPageState extends State<LoginPage> {
     String idInput = _idController.text.trim().toUpperCase();
     String passwordInput = _passwordController.text;
 
-    // 1. Validasi kosong
     if (idInput.isEmpty || passwordInput.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("ID dan Kata Sandi tidak boleh kosong!"), backgroundColor: Colors.red),
@@ -32,27 +32,31 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // 2. TEMBAK API GOLANG
       final url = Uri.parse('http://116.193.190.121:8080/api/login');
       final response = await http.post(
         url,
         headers: {"Content-Type": "application/json"},
         body: json.encode({
-          "id_pengguna": idInput, // Harus sama dengan struct Golang
+          "id_pengguna": idInput, 
           "kata_sandi": passwordInput,
         }),
       );
 
       final data = json.decode(response.body);
 
-      // 3. CEK HASIL DARI DATABASE
       if (response.statusCode == 200) {
         if (!mounted) return;
 
         String role = data['data']['role'];
-        String idValid = data['data']['id']; // Ambil ID yang benar dari DB
+        String idValid = data['data']['id']; 
 
-        // LOGIKA ROUTING ROLE BERDASARKAN DATABASE
+        // ---> PROSES SIMPAN SESI KE MEMORI HP <---
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('role', role);
+        await prefs.setString('id_peserta', idValid); // Simpan ID valid dari database
+
+        // LOGIKA ROUTING ROLE
         if (role == "PANITIA") {
           Navigator.pushReplacement(
             context,
@@ -65,7 +69,6 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       } else {
-        // Jika password salah atau ID tidak ditemukan (401 / 404)
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(data['message'] ?? 'Login gagal'), backgroundColor: Colors.red),
@@ -103,10 +106,9 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 40),
                 
-                // Form Input ID
                 TextField(
                   controller: _idController,
-                  textCapitalization: TextCapitalization.characters, // Otomatis huruf besar
+                  textCapitalization: TextCapitalization.characters, 
                   decoration: InputDecoration(
                     labelText: "ID Pengguna",
                     prefixIcon: const Icon(Icons.person_outline),
@@ -119,7 +121,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
                 
-                // Form Input Password
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
@@ -135,7 +136,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 30),
                 
-                // Tombol Login
                 ElevatedButton(
                   onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(

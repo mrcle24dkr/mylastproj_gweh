@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart'; 
+import 'package:shared_preferences/shared_preferences.dart'; // ---> IMPORT TAMBAHAN
 import 'providers/theme_provider.dart'; 
+import 'login_page.dart'; // ---> IMPORT TAMBAHAN
 
 class AkunPanitiaPage extends StatefulWidget {
   const AkunPanitiaPage({super.key});
@@ -15,13 +17,12 @@ class AkunPanitiaPage extends StatefulWidget {
 class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
   final TextEditingController _passLamaController = TextEditingController();
   final TextEditingController _passBaruController = TextEditingController();
-  final TextEditingController _idRoleController = TextEditingController(); // Controller untuk fitur Ubah Role
+  final TextEditingController _idRoleController = TextEditingController(); 
   
   bool _isLoading = false;
 
   // FUNGSI GANTI PASSWORD PANITIA
   Future<void> _gantiPasswordPanitia() async {
-    // ... (Fungsi ganti password sama persis seperti sebelumnya) ...
     if (_passLamaController.text.isEmpty || _passBaruController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kata sandi tidak boleh kosong!"), backgroundColor: Colors.red));
       return;
@@ -58,14 +59,13 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
     if (mounted) setState(() => _isLoading = true);
 
     try {
-      // TODO: Sesuaikan URL Endpoint dengan API Golang kamu untuk update Role
       final url = Uri.parse('http://116.193.190.121:8080/api/user/role'); 
       final response = await http.put(
         url,
         headers: {"Content-Type": "application/json"},
         body: json.encode({
           "id_peserta": _idRoleController.text,
-          "role": "PANITIA" // Payload mengubah role
+          "role": "PANITIA" 
         }),
       );
 
@@ -73,7 +73,7 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Berhasil! ${_idRoleController.text} sekarang adalah Panitia."), backgroundColor: Colors.green));
         _idRoleController.clear();
-        Navigator.pop(context); // Tutup dialog
+        Navigator.pop(context); 
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal mengubah role"), backgroundColor: Colors.red));
       }
@@ -83,6 +83,21 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // ---> FUNGSI BARU: LOGOUT YANG MENGHAPUS SESI MEMORI <---
+  Future<void> _prosesLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); // Hapus memori login dari HP
+
+    if (!mounted) return;
+    
+    // Hapus semua rute layar dan lempar kembali ke Login Page
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+      (route) => false,
+    );
   }
 
   // DIALOG UBAH ROLE
@@ -214,7 +229,6 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
 
               // KELOMPOK 1: MANAJEMEN
               _buildMenuCard(children: [
-                // ---> MENU BARU: UBAH ROLE <---
                 _buildMenuItem(icon: Icons.admin_panel_settings_outlined, title: "UBAH ROLE PESERTA", onTap: _tampilkanDialogUbahRole),
               ]),
 
@@ -246,8 +260,9 @@ class _AkunPanitiaPageState extends State<AkunPanitiaPage> {
               
               Padding(
                 padding: const EdgeInsets.all(20),
+                // ---> TOMBOL LOGOUT MEMANGGIL FUNGSI _prosesLogout <---
                 child: OutlinedButton.icon(
-                  onPressed: () => Navigator.pushReplacementNamed(context, '/'),
+                  onPressed: _prosesLogout,
                   icon: const Icon(Icons.logout, color: Colors.red),
                   label: const Text("LOG OUT", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
