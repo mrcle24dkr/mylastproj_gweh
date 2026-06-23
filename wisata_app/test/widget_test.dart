@@ -1,4 +1,4 @@
-// This is a basic Flutter widget test.
+// This is a basic Flutter widget test adjusted for WisataApp.
 //
 // To perform an interaction with a widget in your test, use the WidgetTester
 // utility in the flutter_test package. For example, you can send tap and scroll
@@ -7,24 +7,30 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 import 'package:wisata_app/main.dart';
+import 'package:wisata_app/login_page.dart';
+import 'package:wisata_app/providers/theme_provider.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('Aplikasi berhasil memuat Halaman Login', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const WisataApp());
+    // Kita bungkus dengan ChangeNotifierProvider agar ThemeProvider tidak error saat test
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (context) => ThemeProvider(),
+        child: const WisataApp(halamanPertama: LoginPage()), 
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Membiarkan animasi rendering selesai
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
+    // Verifikasi bahwa aplikasi tidak lagi menampilkan counter '0'
     expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+
+    // Verifikasi bahwa aplikasi berhasil memuat halaman LoginPage sebagai halaman pertama
+    expect(find.byType(LoginPage), findsOneWidget);
   });
 }

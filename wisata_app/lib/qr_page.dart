@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart'; // ---> IMPORT DITAMBAHKAN
 import 'services/totp_service.dart';
 
 class QrPage extends StatefulWidget {
@@ -23,49 +24,104 @@ class _QrPageState extends State<QrPage> {
   @override
   void initState() {
     super.initState();
-    // Tarik data dari Golang saat halaman pertama kali dibuka
-    fetchDataPeserta();
+    // 1. Jalankan inisialisasi offline terlebih dahulu
+    _inisialisasiDataOffline();
   }
 
-  // Fungsi menembak API Golang menggunakan idPeserta yang dinamis
-  Future<void> fetchDataPeserta() async {
+  // ---> FUNGSI INTI OFFLINE DITAMBAHKAN <---
+  Future<void> _inisialisasiDataOffline() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Coba baca data dari memori lokal (Mode Offline)
+    String savedKey = prefs.getString('qr_secret_key_${widget.idPeserta}') ?? "";
+    String savedNama = prefs.getString('nama_peserta_${widget.idPeserta}') ?? "Memuat data...";
+
+    if (savedKey.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          secretKey = savedKey;
+          if (savedNama != "Memuat data...") {
+            namaPeserta = savedNama;
+          }
+        });
+      }
+      _mulaiTimer(); // Langsung jalankan mesin QR pakai data offline!
+    }
+
+    // 2. Walaupun sudah dapat dari memori, tetap coba sedot dari Golang
+    // secara diam-diam untuk sinkronisasi (Background Sync)
+    _fetchDataPeserta(prefs);
+  }
+
+  // Fungsi menembak API Golang yang sudah dimodifikasi
+  Future<void> _fetchDataPeserta(SharedPreferences prefs) async {
     try {
-      // Perhatikan: URL sekarang menggunakan widget.idPeserta
       final url = Uri.parse('http://116.193.190.121:8080/api/peserta/${widget.idPeserta}');
-      final response = await http.get(url);
+      
+      // Kasih batas waktu 5 detik agar tidak nyangkut jika sedang tidak ada sinyal
+      final response = await http.get(url).timeout(const Duration(seconds: 5));
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body)['data'];
-        setState(() {
-          secretKey = data['qr_secret_key'] ?? data['QRSecretKey'] ?? '';
-          namaPeserta = data['nama_lengkap'] ?? data['NamaLengkap'] ?? 'Unknown';
-        });
         
-        generateTOTP(); // Panggil racikan pertama
-        
-        // Mulai timer berdetak setiap 1 detik
-        _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          generateTOTP();
-        });
-      } else {
-        setState(() {
-          namaPeserta = "Data peserta tidak ditemukan (404)";
-        });
+        String fetchedKey = data['qr_secret_key'] ?? data['QRSecretKey'] ?? '';
+        String fetchedNama = data['nama_lengkap'] ?? data['NamaLengkap'] ?? 'Unknown';
+
+        if (fetchedKey.isNotEmpty) {
+          // Simpan pembaruan ke memori HP
+          await prefs.setString('qr_secret_key_${widget.idPeserta}', fetchedKey);
+          await prefs.setString('nama_peserta_${widget.idPeserta}', fetchedNama);
+
+          if (mounted) {
+            setState(() {
+              secretKey = fetchedKey;
+              namaPeserta = fetchedNama;
+            });
+
+            // Jika sebelumnya HP belum punya memori (timer belum jalan), nyalakan sekarang
+            if (_timer == null || !_timer!.isActive) {
+              _mulaiTimer();
+            }
+          }
+        }
+      } else if (secretKey.isEmpty) {
+        // Hanya tampilkan error 404 jika memang belum punya cache sama sekali
+        if (mounted) {
+          setState(() {
+            namaPeserta = "Data peserta tidak ditemukan (404)";
+          });
+        }
       }
     } catch (e) {
-      debugPrint("Error Fetch API: $e"); 
-      setState(() {
-        namaPeserta = "Gagal memproses data Server";
-      });
+      // Jika error (karena benar-benar di blank spot), sistem akan diam saja
+      // dan tetap membiarkan QR Code menyala menggunakan data dari memori.
+      debugPrint("Sistem Offline aktif. Mengandalkan memori lokal. Info: $e"); 
+      
+      if (secretKey.isEmpty && mounted) {
+        setState(() {
+          namaPeserta = "Hubungkan ke internet untuk pertama kali.";
+        });
+      }
     }
   }
 
-  // Fungsi meracik QR Code dinamis
+  // Fungsi menyalakan detak jantung aplikasi
+  void _mulaiTimer() {
+    generateTOTP(); // Panggil racikan pertama
+    
+    _timer?.cancel(); // Pastikan tidak ada timer ganda yang berjalan
+    // Mulai timer berdetak setiap 1 detik
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      generateTOTP();
+    });
+  }
+
+  // Fungsi meracik QR Code dinamis (TIDAK BERUBAH)
   void generateTOTP() {
     if (secretKey.isNotEmpty) {
       final payload = TotpService.generatePayloadQR(widget.idPeserta, secretKey);
 
-      if (currentTOTP != payload) {
+      if (currentTOTP != payload && mounted) {
         setState(() {
           currentTOTP = payload;
         });
@@ -83,7 +139,7 @@ class _QrPageState extends State<QrPage> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Center(
-        // Tampilkan loading jika kunci belum didapat dari Golang
+        // Tampilkan loading HANYA JIKA kunci belum didapat dari Golang DAN belum ada di memori
         child: secretKey.isEmpty
             ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -118,7 +174,7 @@ class _QrPageState extends State<QrPage> {
                       ],
                     ),
                     child: QrImageView(
-                      data: currentTOTP, // Data ini berisi 6 digit angka TOTP
+                      data: currentTOTP, // Data ini berisi format dari TotpService
                       version: QrVersions.auto,
                       size: 250.0,
                     ),
