@@ -6,7 +6,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:url_launcher/url_launcher.dart'; 
+import 'package:url_launcher/url_launcher.dart';
 
 class PanitiaMapPage extends StatefulWidget {
   const PanitiaMapPage({super.key});
@@ -21,6 +21,10 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
   
   double latPos = -7.74664;
   double lonPos = 110.35546;
+  
+  // ---> REVISI: Variabel untuk Radius & Pin Manual <---
+  double _radiusAktif = 50.0; 
+  LatLng? _titikPilihManual; 
 
   Map<String, dynamic> _pesertaTracking = {};
   Map<String, dynamic> _mapDetailPeserta = {}; 
@@ -60,6 +64,11 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
         setState(() {
           latPos = (data['lat'] as num).toDouble();
           lonPos = (data['lon'] as num).toDouble();
+          
+          // ---> REVISI: Baca radius dari Firebase <---
+          if (data['radius'] != null) {
+            _radiusAktif = (data['radius'] as num).toDouble();
+          }
         });
       }
     });
@@ -76,15 +85,6 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
     });
   }
 
-  Future<void> _aturTitikKumpulKeLokasiSaya() async {
-    Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-    await _dbRef.child("titik_kumpul_aktif").set({
-      "lat": pos.latitude, "lon": pos.longitude, "diupdate_oleh": "PANITIA_AKTIF"
-    });
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Titik kumpul dipindahkan ke lokasi Anda!"), backgroundColor: Colors.blue));
-  }
-
   Future<void> _teleponDarurat(String nomor) async {
     final Uri url = Uri.parse('tel:$nomor');
     if (!await launchUrl(url)) {
@@ -92,9 +92,100 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
     }
   }
 
+  // ---> REVISI: Fungsi Baru untuk Simpan Titik & Radius ke Firebase <---
+  Future<void> _simpanTitikKumpul({required bool isManual, required String radiusStr}) async {
+    double radius = double.tryParse(radiusStr) ?? 50.0;
+    double targetLat;
+    double targetLon;
+
+    if (isManual && _titikPilihManual != null) {
+      targetLat = _titikPilihManual!.latitude;
+      targetLon = _titikPilihManual!.longitude;
+    } else {
+      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      targetLat = pos.latitude;
+      targetLon = pos.longitude;
+    }
+
+    await _dbRef.child("titik_kumpul_aktif").set({
+      "lat": targetLat,
+      "lon": targetLon,
+      "radius": radius,
+      "diupdate_oleh": "PANITIA_AKTIF"
+    });
+
+    setState(() {
+      _titikPilihManual = null; // Reset pin manual setelah disimpan
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Titik Kumpul & Radius (${radius}m) Berhasil Dikunci!"), backgroundColor: Colors.green));
+  }
+
+  // ---> REVISI: Bottom Sheet untuk Mengatur Radius & Metode Penentuan Lokasi <---
+  void _tampilkanMenuTitikKumpul() {
+    final TextEditingController radiusCtrl = TextEditingController(text: _radiusAktif.toStringAsFixed(0));
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 25, left: 20, right: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Pengaturan Titik Kumpul", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Text("Tentukan radius jarak aman peserta dari Bus/Titik Kumpul.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 25),
+              
+              TextField(
+                controller: radiusCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: "Batas Radius Aman (Meter)", 
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.radar),
+                ),
+              ),
+              const SizedBox(height: 25),
+              
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: Colors.blue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                icon: const Icon(Icons.my_location, color: Colors.white),
+                label: const Text("Kunci di Lokasi Saya (GPS HP)", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                onPressed: () {
+                  Navigator.pop(context);
+                  _simpanTitikKumpul(isManual: false, radiusStr: radiusCtrl.text);
+                },
+              ),
+              const SizedBox(height: 15),
+              
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 55), 
+                  backgroundColor: _titikPilihManual == null ? Colors.grey[400] : Colors.orange,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+                ),
+                icon: const Icon(Icons.touch_app, color: Colors.white),
+                label: Text(_titikPilihManual == null ? "Pilih Dulu Titik di Peta" : "Kunci di Titik Oranye (Manual)", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                onPressed: _titikPilihManual == null ? null : () {
+                  Navigator.pop(context);
+                  _simpanTitikKumpul(isManual: true, radiusStr: radiusCtrl.text);
+                },
+              ),
+              const SizedBox(height: 30),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
   void _tampilkanDetailPeserta(String idPeserta, Map<dynamic, dynamic> info) {
     final bool isAman = info['status'] == "AMAN";
-    
     final detail = _mapDetailPeserta[idPeserta] ?? {};
     final String namaPeserta = detail['NamaLengkap']?.toString() ?? idPeserta;
     final String seat = detail['Seat']?.toString() ?? '-';
@@ -230,6 +321,21 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
       ),
     ];
 
+    // ---> REVISI: Tampilkan Marker Oranye jika Panitia mengetuk peta <---
+    if (_titikPilihManual != null) {
+      mapMarkers.add(
+        Marker(
+          point: _titikPilihManual!,
+          width: 50, height: 50,
+          child: const Column(
+            children: [
+              Icon(Icons.location_on, color: Colors.orange, size: 40),
+            ],
+          ),
+        )
+      );
+    }
+
     List<MapEntry<String, dynamic>> trackingList = _pesertaTracking.entries.toList();
 
     trackingList.sort((a, b) {
@@ -247,11 +353,9 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
       mapMarkers.add(
         Marker(
           point: LatLng(pLat, pLon),
-          width: 50, height: 50, // Diperbesar sedikit agar mudah diklik dengan jari
-          // ---> REVISI: FITUR MAP TO LIST (MARKER BISA DIKLIK) <---
+          width: 50, height: 50, 
           child: GestureDetector(
             onTap: () {
-              // Menampilkan detail medis saat marker diklik
               _tampilkanDetailPeserta(idPeserta, peserta.value);
             },
             child: Icon(
@@ -265,27 +369,70 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
     }
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: _aturTitikKumpulKeLokasiSaya,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _tampilkanMenuTitikKumpul, // ---> REVISI: Panggil Menu BottomSheet <---
         backgroundColor: Colors.blue,
-        child: const Icon(Icons.my_location, color: Colors.white),
+        icon: const Icon(Icons.settings_overscan, color: Colors.white),
+        label: const Text("Set Titik & Radius", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: Column(
         children: [
           Expanded(
             flex: 3,
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: LatLng(latPos, lonPos),
-                initialZoom: 16.0,
-              ),
+            child: Stack(
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.wisata_app',
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: LatLng(latPos, lonPos),
+                    initialZoom: 16.0,
+                    // ---> REVISI: Fungsi Tap Peta untuk menentukan Titik Manual <---
+                    onTap: (tapPosition, point) {
+                      setState(() {
+                        _titikPilihManual = point;
+                      });
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text("Titik Oranye diletakkan! Tekan tombol biru di bawah untuk mengunci."), 
+                        backgroundColor: Colors.orange,
+                        duration: Duration(seconds: 2)
+                      ));
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.example.wisata_app',
+                    ),
+                    
+                    // ---> REVISI: Menampilkan Lingkaran Radius Visual <---
+                    CircleLayer(
+                      circles: [
+                        // Lingkaran Bus Aktif
+                        CircleMarker(
+                          point: LatLng(latPos, lonPos),
+                          radius: _radiusAktif,
+                          useRadiusInMeter: true,
+                          color: Colors.blue.withOpacity(0.15),
+                          borderColor: Colors.blue,
+                          borderStrokeWidth: 2,
+                        ),
+                      ],
+                    ),
+                    
+                    MarkerLayer(markers: mapMarkers),
+                  ],
                 ),
-                MarkerLayer(markers: mapMarkers),
+                
+                // Instruksi kecil di atas peta
+                Positioned(
+                  top: 10, left: 10, right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(10)),
+                    child: const Text("Ketuk area peta untuk meletakkan Pin Baru, atau gunakan lokasi HP Anda.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
+                )
               ],
             ),
           ),
@@ -300,9 +447,9 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     color: Colors.red[50],
-                    child: const Text(
-                      "Peringatan Geofencing & Kontak Darurat", 
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                    child: Text(
+                      "Geofencing Aktif (Radius: ${_radiusAktif.toStringAsFixed(0)}m)", 
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
                     ),
                   ),
                   Expanded(
@@ -327,16 +474,11 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
                                 ),
                                 title: Text(namaTampil, style: const TextStyle(fontWeight: FontWeight.bold)),
                                 subtitle: const Text("Ketuk untuk cari lokasi & lihat detail", style: TextStyle(color: Colors.grey)),
-                                trailing: const Icon(Icons.my_location, color: Colors.blue), // Ganti icon biar lebih pas maknanya
+                                trailing: const Icon(Icons.my_location, color: Colors.blue),
                                 onTap: () {
-                                  // ---> REVISI: FITUR LIST TO MAP (KAMERA MAP BERGERAK) <---
                                   double tLat = (info['latitude'] ?? 0).toDouble();
                                   double tLon = (info['longitude'] ?? 0).toDouble();
-                                  
-                                  // Menggeser peta ke posisi peserta yang diklik dengan zoom 18.0
                                   _mapController.move(LatLng(tLat, tLon), 18.0);
-                                  
-                                  // Menampilkan popup detail
                                   _tampilkanDetailPeserta(idPeserta, info);
                                 },
                               );

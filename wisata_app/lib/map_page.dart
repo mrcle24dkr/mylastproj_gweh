@@ -4,6 +4,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart'; 
+import 'package:http/http.dart' as http; // ---> TAMBAHAN: Untuk API OSRM
+import 'dart:convert';                   // ---> TAMBAHAN: Untuk decode JSON
 import 'services/location_service.dart';
 
 class MapPage extends StatefulWidget {
@@ -21,12 +23,16 @@ class _MapPageState extends State<MapPage> {
 
   double latPos = -7.74664;
   double lonPos = 110.35546;
-  final double radiusAman = 50.0;
+  double radiusAman = 50.0;
 
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
   final MapController _mapController = MapController();
   LatLng _posisiPeserta = const LatLng(-7.74664, 110.35546);
   bool _lokasiDitemukan = false;
+
+  // ---> TAMBAHAN: Variabel Penampung Data Rute <---
+  List<LatLng> _routePoints = []; 
+  LatLng? _lastRouteFetchPos; 
 
   @override
   void initState() {
@@ -36,15 +42,49 @@ class _MapPageState extends State<MapPage> {
   }
 
   void _listenTitikKumpul() {
-    _dbRef.child("titik_kumpul_aktif").onValue.listen((DatabaseEvent event) {
+_dbRef.child("titik_kumpul_aktif").onValue.listen((DatabaseEvent event) {
       final data = event.snapshot.value as Map?;
       if (data != null) {
         setState(() {
           latPos = (data['lat'] as num).toDouble();
           lonPos = (data['lon'] as num).toDouble();
+          
+          // ---> TAMBAHKAN 3 BARIS INI <---
+          if (data['radius'] != null) {
+            radiusAman = (data['radius'] as num).toDouble();
+          }
         });
+
+        if (_lokasiDitemukan) {
+          _ambilRuteJalan(_posisiPeserta, LatLng(latPos, lonPos));
+        }
       }
     });
+  }
+
+  // ---> TAMBAHAN: Fungsi Memanggil API Rute OSM (OSRM) <---
+  Future<void> _ambilRuteJalan(LatLng start, LatLng end) async {
+    try {
+      // Menggunakan profil 'foot' agar diarahkan ke jalur pejalan kaki/gang
+      final url = Uri.parse(
+          'http://router.project-osrm.org/route/v1/foot/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson'
+      );
+      
+      final response = await http.get(url);
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List coordinates = data['routes'][0]['geometry']['coordinates'];
+        
+        if (mounted) {
+          setState(() {
+            _routePoints = coordinates.map((coord) => LatLng(coord[1], coord[0])).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal mengambil rute aktual: $e");
+    }
   }
 
   Future<void> _cekIzinDanAmbilLokasi() async {
@@ -67,18 +107,31 @@ class _MapPageState extends State<MapPage> {
         position.latitude, position.longitude, latPos, lonPos
       );
       String status = LocationService.cekStatusGeofence(jarak, radiusAman);
+      
+      // Ambil posisi aktual untuk rute
+      LatLng currentPos = LatLng(position.latitude, position.longitude);
+      LatLng titikKumpul = LatLng(latPos, lonPos);
 
       setState(() {
         _jarakMeter = jarak;
         _statusGeofence = status;
         _locationMessage = "Lat: ${position.latitude}\nLon: ${position.longitude}";
-        _posisiPeserta = LatLng(position.latitude, position.longitude);
+        _posisiPeserta = currentPos;
         _lokasiDitemukan = true;
       });
 
       // Agar map tidak selalu berpusat memaksa ke peserta setiap detik, 
       // kamu bisa matikan auto-move ini nanti jika dirasa mengganggu saat digeser manual.
       _mapController.move(_posisiPeserta, 17.0);
+
+      // ---> TAMBAHAN: Smart Routing (Mencegah spam API dan hemat baterai) <---
+      // Rute hanya direfresh jika jarak user sudah pindah 15 meter dari titik sebelumnya
+      if (_lastRouteFetchPos == null || 
+          LocationService.hitungJarakHaversine(_lastRouteFetchPos!.latitude, _lastRouteFetchPos!.longitude, currentPos.latitude, currentPos.longitude) > 15) {
+        
+        _lastRouteFetchPos = currentPos;
+        _ambilRuteJalan(currentPos, titikKumpul);
+      }
 
       _dbRef.child("tracking").child(widget.idPeserta).set({
         "latitude": position.latitude,
@@ -121,10 +174,9 @@ class _MapPageState extends State<MapPage> {
                       PolylineLayer(
                         polylines: [
                           Polyline(
-                            points: [
-                              _posisiPeserta, 
-                              LatLng(latPos, lonPos)
-                            ],
+                            // Jika rute berhasil didapat, gunakan array _routePoints.
+                            // Jika gagal / loading, fallback ke garis lurus 2 titik.
+                            points: _routePoints.isNotEmpty ? _routePoints : [_posisiPeserta, LatLng(latPos, lonPos)],
                             color: Colors.blueAccent.withOpacity(0.7),
                             strokeWidth: 5.0,
                           ),
