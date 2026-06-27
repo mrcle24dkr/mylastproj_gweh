@@ -1,8 +1,8 @@
 // Lokasi File: lib/login_page.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // ---> TAMBAHAN IMPORT
-import 'main.dart'; // Memanggil MainNavigator (Peserta)
-import 'panitia_navigator.dart'; // Memanggil PanitiaNavigator (Panitia)
+import 'package:shared_preferences/shared_preferences.dart';
+import 'main.dart'; 
+import 'panitia_navigator.dart'; 
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -14,17 +14,18 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _idController = TextEditingController();
+  // ---> REVISI: Mengganti Controller ID menjadi Nama <---
+  final TextEditingController _namaController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
   void _handleLogin() async {
-    String idInput = _idController.text.trim().toUpperCase();
+    String namaInput = _namaController.text.trim();
     String passwordInput = _passwordController.text;
 
-    if (idInput.isEmpty || passwordInput.isEmpty) {
+    if (namaInput.isEmpty || passwordInput.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("ID dan Kata Sandi tidak boleh kosong!"), backgroundColor: Colors.red),
+        const SnackBar(content: Text("Nama dan Kata Sandi tidak boleh kosong!"), backgroundColor: Colors.red),
       );
       return;
     }
@@ -37,7 +38,9 @@ class _LoginPageState extends State<LoginPage> {
         url,
         headers: {"Content-Type": "application/json"},
         body: json.encode({
-          "id_pengguna": idInput, 
+          // PENTING: API Golang kamu harus diubah agar menerima 'nama_pengguna' 
+          // dan mencari database berdasarkan kolom nama!
+          "nama_pengguna": namaInput, 
           "kata_sandi": passwordInput,
         }),
       );
@@ -48,38 +51,27 @@ class _LoginPageState extends State<LoginPage> {
         if (!mounted) return;
 
         String role = data['data']['role'];
+        // API harus tetap mengembalikan ID Valid (meskipun login pakai nama)
+        // karena ID dipakai untuk scan QR ESP32 dan Geolocation
         String idValid = data['data']['id']; 
 
-        // ---> PROSES SIMPAN SESI KE MEMORI HP <---
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
         await prefs.setString('role', role);
-        await prefs.setString('id_peserta', idValid); // Simpan ID valid dari database
+        await prefs.setString('id_peserta', idValid); 
 
-        // LOGIKA ROUTING ROLE
         if (role == "PANITIA") {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const PanitiaNavigator()),
-          );
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const PanitiaNavigator()));
         } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => MainNavigator(idPeserta: idValid)),
-          );
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MainNavigator(idPeserta: idValid)));
         }
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? 'Login gagal'), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Login gagal'), backgroundColor: Colors.red));
       }
     } catch (e) {
       if (!mounted) return;
-      debugPrint("Error Login: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Gagal terhubung ke Server"), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal terhubung ke Server"), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -106,11 +98,12 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 40),
                 
+                // Form Input Nama
                 TextField(
-                  controller: _idController,
-                  textCapitalization: TextCapitalization.characters, 
+                  controller: _namaController,
+                  textCapitalization: TextCapitalization.words, // Kapital di awal kata (Budi Santoso)
                   decoration: InputDecoration(
-                    labelText: "ID Pengguna",
+                    labelText: "Nama Lengkap",
                     prefixIcon: const Icon(Icons.person_outline),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
@@ -121,6 +114,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
                 
+                // Form Input Password
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
@@ -136,6 +130,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 30),
                 
+                // Tombol Login
                 ElevatedButton(
                   onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(

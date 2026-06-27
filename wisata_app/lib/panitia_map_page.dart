@@ -6,6 +6,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart'; 
 
 class PanitiaMapPage extends StatefulWidget {
   const PanitiaMapPage({super.key});
@@ -22,7 +23,7 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
   double lonPos = 110.35546;
 
   Map<String, dynamic> _pesertaTracking = {};
-  Map<String, String> _mapNamaPeserta = {};
+  Map<String, dynamic> _mapDetailPeserta = {}; 
 
   @override
   void initState() {
@@ -42,13 +43,13 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
         if(mounted) {
           setState(() {
             for (var p in data) {
-              _mapNamaPeserta[p['IDPeserta'].toString()] = p['NamaLengkap'].toString();
+              _mapDetailPeserta[p['IDPeserta'].toString()] = p; 
             }
           });
         }
       }
     } catch (e) {
-      debugPrint("Gagal memuat nama peserta: $e");
+      debugPrint("Gagal memuat detail peserta: $e");
     }
   }
 
@@ -84,21 +85,33 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Titik kumpul dipindahkan ke lokasi Anda!"), backgroundColor: Colors.blue));
   }
 
-  // ---> BOTTOM SHEET DESAIN OVERLAPPING (Sesuai Rancangan Mockup) <---
-  void _tampilkanDetailPeserta(String idPeserta, String namaPeserta, Map<dynamic, dynamic> info) {
+  Future<void> _teleponDarurat(String nomor) async {
+    final Uri url = Uri.parse('tel:$nomor');
+    if (!await launchUrl(url)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tidak dapat membuka aplikasi telepon")));
+    }
+  }
+
+  void _tampilkanDetailPeserta(String idPeserta, Map<dynamic, dynamic> info) {
     final bool isAman = info['status'] == "AMAN";
+    
+    final detail = _mapDetailPeserta[idPeserta] ?? {};
+    final String namaPeserta = detail['NamaLengkap']?.toString() ?? idPeserta;
+    final String seat = detail['Seat']?.toString() ?? '-';
+    final String penyakit = detail['PenyakitBawaan']?.toString() ?? '-';
+    final String alergi = detail['Alergi']?.toString() ?? '-';
+    final String noDarurat = detail['KontakDarurat']?.toString() ?? '';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent, // Transparan agar efek overlap melengkung bisa bekerja
+      backgroundColor: Colors.transparent, 
       builder: (context) {
-        return Wrap( // Wrap membuat bottom sheet memeluk konten (tingginya dinamis)
+        return Wrap( 
           children: [
             Stack(
               alignment: Alignment.topCenter,
               children: [
-                // Box Putih Utama (Diberi jarak atas untuk memberi ruang pada avatar)
                 Container(
                   margin: const EdgeInsets.only(top: 45), 
                   padding: const EdgeInsets.only(top: 60, left: 24, right: 24, bottom: 30),
@@ -113,10 +126,9 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
                       const SizedBox(height: 5),
                       Text(namaPeserta.toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
                       const SizedBox(height: 5),
-                      const Text("SEAT : 14", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text("SEAT : $seat", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 15),
                       
-                      // Status Badge (Red / Green Pill)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                         decoration: BoxDecoration(
@@ -141,62 +153,61 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
                       const Divider(thickness: 2),
                       const SizedBox(height: 15),
 
-                      // Data Medis Section
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text("DATA MEDIS :", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, fontStyle: FontStyle.italic)),
                       ),
                       const SizedBox(height: 15),
                       Row(
-                        children: const [
-                          Icon(Icons.sick, color: Colors.deepOrange),
-                          SizedBox(width: 15),
-                          Text("Penyakit Bawaan : ", style: TextStyle(fontSize: 15)),
-                          Text("Vertigo", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                        children: [
+                          const Icon(Icons.sick, color: Colors.deepOrange),
+                          const SizedBox(width: 15),
+                          const Text("Penyakit Bawaan : ", style: TextStyle(fontSize: 15)),
+                          Expanded(child: Text(penyakit, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15))),
                         ],
                       ),
                       const SizedBox(height: 10),
                       Row(
-                        children: const [
-                          Icon(Icons.no_meals, color: Colors.deepOrange),
-                          SizedBox(width: 15),
-                          Text("Alergi : ", style: TextStyle(fontSize: 15)),
-                          Text("-", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                        children: [
+                          const Icon(Icons.no_meals, color: Colors.deepOrange),
+                          const SizedBox(width: 15),
+                          const Text("Alergi : ", style: TextStyle(fontSize: 15)),
+                          Expanded(child: Text(alergi, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15))),
                         ],
                       ),
                       
                       const SizedBox(height: 35),
                       
-                      // Tombol Telepon Darurat
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: const BorderSide(color: Colors.black, width: 2),
+                            side: BorderSide(color: noDarurat.isEmpty ? Colors.grey : Colors.black, width: 2),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                           ),
-                          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Memanggil Kontak Darurat..."))),
-                          icon: const Icon(Icons.call, color: Colors.black),
-                          label: const Text("TELEPON KONTAK DARURAT", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
+                          onPressed: noDarurat.isEmpty 
+                              ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tidak ada nomor kontak darurat!"))) 
+                              : () => _teleponDarurat(noDarurat),
+                          icon: Icon(Icons.call, color: noDarurat.isEmpty ? Colors.grey : Colors.black),
+                          label: Text("TELEPON KONTAK DARURAT", style: TextStyle(color: noDarurat.isEmpty ? Colors.grey : Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
                         ),
                       ),
                     ],
                   ),
                 ),
                 
-                // AVATAR OVERLAP (Ditumpuk di tengah paling atas box)
                 Positioned(
                   top: 0,
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 8), // Border putih tebal
+                      border: Border.all(color: Colors.white, width: 8), 
                       boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))],
                     ),
                     child: const CircleAvatar(
                       radius: 45,
-                      backgroundColor: Color(0xFFD07044), // Warna oranye estetik
+                      backgroundColor: Color(0xFFD07044), 
                       child: Icon(Icons.person, size: 55, color: Colors.white),
                     ),
                   ),
@@ -231,15 +242,23 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
       double pLat = (peserta.value['latitude'] ?? 0).toDouble();
       double pLon = (peserta.value['longitude'] ?? 0).toDouble();
       bool isAman = peserta.value['status'] == "AMAN";
+      String idPeserta = peserta.key;
 
       mapMarkers.add(
         Marker(
           point: LatLng(pLat, pLon),
-          width: 30, height: 30,
-          child: Icon(
-            Icons.person_pin_circle, 
-            color: isAman ? Colors.green : Colors.red, 
-            size: 30
+          width: 50, height: 50, // Diperbesar sedikit agar mudah diklik dengan jari
+          // ---> REVISI: FITUR MAP TO LIST (MARKER BISA DIKLIK) <---
+          child: GestureDetector(
+            onTap: () {
+              // Menampilkan detail medis saat marker diklik
+              _tampilkanDetailPeserta(idPeserta, peserta.value);
+            },
+            child: Icon(
+              Icons.person_pin_circle, 
+              color: isAman ? Colors.green : Colors.red, 
+              size: 35
+            ),
           ),
         )
       );
@@ -278,7 +297,6 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // HEADER PERINGATAN GEOFENCING (Merah Muda)
                   Container(
                     padding: const EdgeInsets.all(12),
                     color: Colors.red[50],
@@ -297,9 +315,10 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
                               final info = trackingList[index].value;
                               final status = info['status'] ?? '-';
                               final bool isAman = status == "AMAN";
-                              final namaTampil = _mapNamaPeserta[idPeserta] ?? idPeserta;
+                              
+                              final detail = _mapDetailPeserta[idPeserta] ?? {};
+                              final namaTampil = detail['NamaLengkap'] ?? idPeserta;
 
-                              // LIST ITEM PERSIS SEPERTI GAMBAR
                               return ListTile(
                                 leading: Icon(
                                   isAman ? Icons.check_circle : Icons.warning_amber_rounded,
@@ -307,9 +326,19 @@ class _PanitiaMapPageState extends State<PanitiaMapPage> {
                                   size: 30,
                                 ),
                                 title: Text(namaTampil, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: const Text("Ketuk untuk lihat detail medis & telepon", style: TextStyle(color: Colors.grey)),
-                                trailing: const Icon(Icons.phone, color: Colors.green),
-                                onTap: () => _tampilkanDetailPeserta(idPeserta, namaTampil, info),
+                                subtitle: const Text("Ketuk untuk cari lokasi & lihat detail", style: TextStyle(color: Colors.grey)),
+                                trailing: const Icon(Icons.my_location, color: Colors.blue), // Ganti icon biar lebih pas maknanya
+                                onTap: () {
+                                  // ---> REVISI: FITUR LIST TO MAP (KAMERA MAP BERGERAK) <---
+                                  double tLat = (info['latitude'] ?? 0).toDouble();
+                                  double tLon = (info['longitude'] ?? 0).toDouble();
+                                  
+                                  // Menggeser peta ke posisi peserta yang diklik dengan zoom 18.0
+                                  _mapController.move(LatLng(tLat, tLon), 18.0);
+                                  
+                                  // Menampilkan popup detail
+                                  _tampilkanDetailPeserta(idPeserta, info);
+                                },
                               );
                             },
                           ),

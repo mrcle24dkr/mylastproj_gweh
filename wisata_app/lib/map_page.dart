@@ -1,3 +1,4 @@
+// Lokasi File: lib/map_page.dart
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -18,7 +19,6 @@ class _MapPageState extends State<MapPage> {
   String _statusGeofence = "-";
   double _jarakMeter = 0;
 
-  // Variabel dinamis untuk lokasi titik kumpul
   double latPos = -7.74664;
   double lonPos = 110.35546;
   final double radiusAman = 50.0;
@@ -31,11 +31,10 @@ class _MapPageState extends State<MapPage> {
   @override
   void initState() {
     super.initState();
-    _listenTitikKumpul(); // Memantau perubahan titik kumpul
+    _listenTitikKumpul(); 
     _cekIzinDanAmbilLokasi();
   }
 
-  // 1. DENGARKAN PERUBAHAN TITIK KUMPUL DARI FIREBASE
   void _listenTitikKumpul() {
     _dbRef.child("titik_kumpul_aktif").onValue.listen((DatabaseEvent event) {
       final data = event.snapshot.value as Map?;
@@ -64,7 +63,6 @@ class _MapPageState extends State<MapPage> {
     Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 2),
     ).listen((Position position) {
-      // Menghitung jarak ke latPos & lonPos terbaru
       double jarak = LocationService.hitungJarakHaversine(
         position.latitude, position.longitude, latPos, lonPos
       );
@@ -78,6 +76,8 @@ class _MapPageState extends State<MapPage> {
         _lokasiDitemukan = true;
       });
 
+      // Agar map tidak selalu berpusat memaksa ke peserta setiap detik, 
+      // kamu bisa matikan auto-move ini nanti jika dirasa mengganggu saat digeser manual.
       _mapController.move(_posisiPeserta, 17.0);
 
       _dbRef.child("tracking").child(widget.idPeserta).set({
@@ -115,9 +115,24 @@ class _MapPageState extends State<MapPage> {
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.example.wisata_app',
                     ),
+                    
+                    // ---> REVISI: LAYER GARIS PENUNJUK ARAH (POLYLINE) <---
+                    if (_lokasiDitemukan)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: [
+                              _posisiPeserta, 
+                              LatLng(latPos, lonPos)
+                            ],
+                            color: Colors.blueAccent.withOpacity(0.7),
+                            strokeWidth: 5.0,
+                          ),
+                        ],
+                      ),
+                      
                     MarkerLayer(
                       markers: [
-                        // Marker Titik Kumpul (Merah) - Akan bergerak otomatis
                         Marker(
                           point: LatLng(latPos, lonPos),
                           width: 40, height: 40,

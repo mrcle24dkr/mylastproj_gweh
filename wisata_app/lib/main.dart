@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart'; 
-import 'package:shared_preferences/shared_preferences.dart'; // ---> TAMBAHAN IMPORT
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'login_page.dart';
-import 'panitia_navigator.dart'; // ---> TAMBAHAN IMPORT (Wajib ada biar bisa bypass ke Panitia)
+import 'panitia_navigator.dart';
 import 'qr_page.dart';
 import 'map_page.dart';
 import 'akun_peserta_page.dart';
