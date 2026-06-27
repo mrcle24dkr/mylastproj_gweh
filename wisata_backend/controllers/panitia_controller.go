@@ -1,6 +1,8 @@
 package controllers
 
 import (
+    "crypto/rand"       // ---> TAMBAHAN: Untuk generate QR Key
+    "encoding/base32"   // ---> TAMBAHAN: Untuk format QR Key
     "net/http"
     "wisata_backend/config"
     "wisata_backend/models"
@@ -31,7 +33,6 @@ type EditPesertaRequest struct {
 }
 
 // Struct khusus untuk menangkap data dari Flutter (POST & PUT)
-// ---> REVISI: Menambahkan tag JSON baru agar pas dengan Map dari Flutter <---
 type InputDataPeserta struct {
     IDPeserta      string `json:"id_peserta"`
     NamaLengkap    string `json:"nama_lengkap"`
@@ -41,6 +42,14 @@ type InputDataPeserta struct {
     PenyakitBawaan string `json:"penyakit_bawaan"`
     Alergi         string `json:"alergi"`
     KontakDarurat  string `json:"kontak_darurat"`
+    IDBus          *uint  `json:"id_bus"` // ---> TAMBAHAN: Menangkap ID Bus
+}
+
+// ---> TAMBAHAN: Fungsi Generator Kode Rahasia (Secret Key) untuk QR Code <---
+func generateTOTPSecret() string {
+    bytes := make([]byte, 10)
+    rand.Read(bytes)
+    return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(bytes)
 }
 
 // 1. FUNGSI TAMBAH PESERTA (POST)
@@ -66,6 +75,9 @@ func TambahPeserta(c *gin.Context) {
         return
     }
 
+    // ---> TAMBAHAN: Generate Secret Key baru saat nambah peserta <---
+    newQRKey := generateTOTPSecret()
+
     // Bentuk objek peserta baru dengan field lengkap hasil revisi
     pesertaBaru := models.Peserta{
         IDPeserta:      input.IDPeserta,
@@ -76,6 +88,8 @@ func TambahPeserta(c *gin.Context) {
         PenyakitBawaan: input.PenyakitBawaan,
         Alergi:         input.Alergi,
         KontakDarurat:  input.KontakDarurat,
+        IDBus:          input.IDBus, // ---> TAMBAHAN: Masukkan ID Bus ke Database
+        QRSecretKey:    newQRKey,    // ---> TAMBAHAN: Masukkan Kode QR ke Database
     }
 
     // Simpan ke Database
@@ -118,12 +132,13 @@ func EditPesertaManual(c *gin.Context) {
         return
     }
 
-    // ---> REVISI: Update seluruh data pelengkap sesuai form edit Flutter <---
+    // Update seluruh data pelengkap sesuai form edit Flutter
     peserta.NamaLengkap = input.NamaLengkap
     peserta.Seat = input.Seat
     peserta.PenyakitBawaan = input.PenyakitBawaan
     peserta.Alergi = input.Alergi
     peserta.KontakDarurat = input.KontakDarurat
+    peserta.IDBus = input.IDBus // ---> TAMBAHAN: Bisa mengedit data Bus
 
     // Simpan perubahan ke Database
     if err := config.DB.Save(&peserta).Error; err != nil {

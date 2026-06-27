@@ -72,7 +72,7 @@ class _PanitiaMasterDataPageState extends State<PanitiaMasterDataPage> {
     }
   }
 
-  // UPDATE PAYLOAD JSON DENGAN DATA BARU
+  // UPDATE PAYLOAD JSON DENGAN DATA BARU (Termasuk id_bus)
   Future<void> _simpanPeserta(Map<String, dynamic> dataForm, bool isEdit) async {
     if (dataForm['id_peserta'].isEmpty || dataForm['nama_lengkap'].isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ID dan Nama tidak boleh kosong!"), backgroundColor: Colors.red));
@@ -113,7 +113,7 @@ class _PanitiaMasterDataPageState extends State<PanitiaMasterDataPage> {
     }
   }
 
-  // DIALOG FORM INPUT DIREVISI
+  // DIALOG FORM INPUT DIREVISI (Tambah Controller ID Bus)
   void _tampilkanDialogForm({Map<String, dynamic>? pesertaData}) {
     final bool isEdit = pesertaData != null;
     
@@ -124,6 +124,9 @@ class _PanitiaMasterDataPageState extends State<PanitiaMasterDataPage> {
     final penyakitController = TextEditingController(text: isEdit ? pesertaData['PenyakitBawaan']?.toString() : '-');
     final alergiController = TextEditingController(text: isEdit ? pesertaData['Alergi']?.toString() : '-');
     final kontakController = TextEditingController(text: isEdit ? pesertaData['KontakDarurat']?.toString() : '');
+    
+    // ---> TAMBAHAN: Controller ID Bus <---
+    final busIdController = TextEditingController(text: isEdit ? pesertaData['IDBus']?.toString() : '');
     
     // Password default diset '123456' untuk pendaftar baru
     final passController = TextEditingController(text: isEdit ? '' : '123456'); 
@@ -142,6 +145,15 @@ class _PanitiaMasterDataPageState extends State<PanitiaMasterDataPage> {
                 const SizedBox(height: 15),
                 TextField(controller: namaController, decoration: const InputDecoration(labelText: "Nama Lengkap (Wajib)", border: OutlineInputBorder())),
                 const SizedBox(height: 15),
+                
+                // ---> TAMBAHAN: Form Input ID Bus <---
+                TextField(
+                  controller: busIdController, 
+                  keyboardType: TextInputType.number, 
+                  decoration: const InputDecoration(labelText: "ID Bus (Contoh: 1 atau 2)", border: OutlineInputBorder(), helperText: "Kosongkan jika belum ada bus")
+                ),
+                const SizedBox(height: 15),
+                
                 TextField(controller: seatController, decoration: const InputDecoration(labelText: "No. Seat (Misal: 14A)", border: OutlineInputBorder())),
                 const SizedBox(height: 15),
                 TextField(controller: penyakitController, decoration: const InputDecoration(labelText: "Penyakit Bawaan", border: OutlineInputBorder())),
@@ -173,6 +185,9 @@ class _PanitiaMasterDataPageState extends State<PanitiaMasterDataPage> {
                   "penyakit_bawaan": penyakitController.text,
                   "alergi": alergiController.text,
                   "kontak_darurat": kontakController.text,
+                  
+                  // ---> TAMBAHAN: Masukkan ID Bus ke Payload JSON <---
+                  "id_bus": int.tryParse(busIdController.text) 
                 };
 
                 if (!isEdit) {
@@ -221,6 +236,9 @@ class _PanitiaMasterDataPageState extends State<PanitiaMasterDataPage> {
                     final idPeserta = p['IDPeserta']?.toString() ?? '-';
                     final namaLengkap = p['NamaLengkap']?.toString() ?? '-';
                     final seat = p['Seat']?.toString() ?? '-';
+                    
+                    // ---> TAMBAHAN: Tarik nama Bus dari relasi tabel untuk ditampilkan <---
+                    final busName = p['Bus']?['NamaBus']?.toString() ?? '(Belum Ada Bus)';
 
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
@@ -231,7 +249,10 @@ class _PanitiaMasterDataPageState extends State<PanitiaMasterDataPage> {
                           child: const Icon(Icons.person, color: Colors.blue),
                         ),
                         title: Text(namaLengkap, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text("ID: $idPeserta  |  Seat: $seat"),
+                        
+                        // ---> TAMBAHAN: Tampilkan Bus di Subtitle <---
+                        subtitle: Text("ID: $idPeserta  |  Seat: $seat  |  Bus: $busName"),
+                        
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
