@@ -13,11 +13,56 @@ class PanitiaLogPage extends StatefulWidget {
 class _PanitiaLogPageState extends State<PanitiaLogPage> {
   List<dynamic> _logs = [];
   bool _isLoading = true;
+  
+  // ---> TAMBAHAN: Variabel untuk Sesi Presensi <---
+  String _sesiAktif = "Pemberangkatan Awal"; 
+  final List<String> _daftarSesi = [
+    "Pemberangkatan Awal",
+    "Makan Siang",
+    "Kunjungan Industri",
+    "Check-in Hotel",
+    "Perjalanan Pulang"
+  ];
 
   @override
   void initState() {
     super.initState();
+    _fetchSesiAktif();
     _fetchLogs();
+  }
+
+  // ---> TAMBAHAN: Ambil Sesi Aktif dari Server <---
+  Future<void> _fetchSesiAktif() async {
+    try {
+      final url = Uri.parse('http://116.193.190.121:8080/api/panitia/sesi');
+      final response = await http.get(url);
+      if (response.statusCode == 200 && mounted) {
+        setState(() {
+          _sesiAktif = json.decode(response.body)['sesi'] ?? "Pemberangkatan Awal";
+        });
+      }
+    } catch (e) {
+      debugPrint("Gagal mengambil sesi aktif: $e");
+    }
+  }
+
+  // ---> TAMBAHAN: Ubah Sesi Aktif di Server <---
+  Future<void> _ubahSesiAktif(String sesiBaru) async {
+    try {
+      final url = Uri.parse('http://116.193.190.121:8080/api/panitia/sesi');
+      final response = await http.put(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({"sesi": sesiBaru}),
+      );
+      
+      if (response.statusCode == 200 && mounted) {
+        setState(() => _sesiAktif = sesiBaru);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sesi diubah ke: $sesiBaru"), backgroundColor: Colors.blue));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal mengubah sesi!"), backgroundColor: Colors.red));
+    }
   }
 
   Future<void> _fetchLogs() async {
@@ -43,7 +88,7 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Hapus Log?"),
-        content: const Text("Peserta ini akan bisa melakukan absen ulang di alat ESP32 jika alat disinkronisasi ulang."),
+        content: const Text("Peserta ini akan bisa melakukan absen ulang di alat ESP32 untuk sesi ini."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Batal")),
           TextButton(
@@ -74,7 +119,6 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
     }
   }
 
-  // TRANSLATE WAKTU MENJADI FORMAT SEPERTI DI DESAIN GAMBAR
   String _formatWaktuLengkap(String rawTime) {
     try {
       DateTime waktu = DateTime.parse(rawTime).toLocal();
@@ -95,11 +139,11 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
         children: [
           // HEADER SESUAI GAMBAR
           Padding(
-            padding: const EdgeInsets.only(left: 20, right: 10, top: 20, bottom: 10),
+            padding: const EdgeInsets.only(left: 20, right: 10, top: 20, bottom: 5),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("Log Presensi Server Golang", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                const Text("Log Presensi Server", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                 Row(
                   children: [
                     Text("Total: ${_logs.length}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
@@ -109,6 +153,44 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
               ],
             ),
           ),
+          
+          // ---> TAMBAHAN: KARTU PENGATURAN SESI <---
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0,2))],
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.event_available, color: Colors.blue),
+                const SizedBox(width: 15),
+                const Expanded(
+                  child: Text("Sesi Scanner Aktif :", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                ),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _sesiAktif,
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.blue),
+                    style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 14),
+                    items: _daftarSesi.map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) _ubahSesiAktif(newValue);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Colors.blue))
@@ -118,6 +200,9 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
                         itemCount: _logs.length,
                         itemBuilder: (context, index) {
                           final data = _logs[index];
+                          // ---> REVISI: Tarik data sesi dari backend <---
+                          final namaSesi = data['nama_sesi'] ?? 'Pemberangkatan Awal';
+                          
                           return Card(
                             elevation: 1,
                             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
@@ -126,17 +211,29 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               leading: const CircleAvatar(
                                 radius: 24,
-                                backgroundColor: Color(0xFF4CAF50), // Hijau sesuai gambar
+                                backgroundColor: Color(0xFF4CAF50), 
                                 child: Icon(Icons.check, color: Colors.white, size: 28),
                               ),
                               title: Text(data['nama'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                               subtitle: Padding(
                                 padding: const EdgeInsets.only(top: 6.0),
-                                child: Text(_formatWaktuLengkap(data['waktu'] ?? ''), style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold, fontSize: 13)),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(_formatWaktuLengkap(data['waktu'] ?? ''), style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold, fontSize: 13)),
+                                    const SizedBox(height: 4),
+                                    // ---> REVISI: Tampilkan Lencana Sesi <---
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(8)),
+                                      child: Text(namaSesi, style: const TextStyle(color: Colors.blue, fontSize: 11, fontWeight: FontWeight.bold)),
+                                    )
+                                  ],
+                                ),
                               ),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => _hapusLog(data['id_peserta'].toString()),
+                                onPressed: () => _hapusLog(data['id_peserta'].toString()), // Bisa disesuaikan jadi ID log auto-increment jika ada
                               ),
                             ),
                           );

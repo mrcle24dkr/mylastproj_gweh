@@ -4,6 +4,7 @@ import 'panitia_log_page.dart';
 import 'panitia_map_page.dart';
 import 'akun_panitia_page.dart';
 import 'panitia_master_data_page.dart'; // ---> TAMBAHKAN IMPORT INI <---
+import 'panitia_rundown_page.dart';
 
 class PanitiaNavigator extends StatefulWidget {
   const PanitiaNavigator({super.key});
@@ -17,6 +18,7 @@ class _PanitiaNavigatorState extends State<PanitiaNavigator> {
 
   final List<Widget> _pages = const [
     PanitiaMasterDataPage(), // ---> UBAH BARIS INI <---
+    PanitiaRundownPage(),
     PanitiaLogPage(), 
     PanitiaMapPage(), 
     AkunPanitiaPage(), 
@@ -44,6 +46,7 @@ class _PanitiaNavigatorState extends State<PanitiaNavigator> {
         type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.group_add), label: 'Master Data'), // Ubah label biar sesuai
+          BottomNavigationBarItem(icon: Icon(Icons.event_note), label: "Jadwal"),
           BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Live Log'),
           BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Radar'),
           BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings), label: 'Sistem'),

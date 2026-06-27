@@ -9,6 +9,7 @@ import 'login_page.dart';
 import 'panitia_navigator.dart';
 import 'qr_page.dart';
 import 'map_page.dart';
+import 'rundown_page.dart';
 import 'akun_peserta_page.dart';
 import 'providers/theme_provider.dart';
 
@@ -131,6 +132,7 @@ class _MainNavigatorState extends State<MainNavigator> {
 
   late final List<Widget> _pages = [
     QrPage(idPeserta: widget.idPeserta),
+    const RundownPage(),
     MapPage(idPeserta: widget.idPeserta),
     AkunPesertaPage(idPeserta: widget.idPeserta),
   ];
@@ -146,13 +148,16 @@ class _MainNavigatorState extends State<MainNavigator> {
     return Scaffold(
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(icon: Icon(Icons.event_note), label: 'Jadwal'),
           BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'QR Tiket'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Lokasi & Radar'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Akun Saya'),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.red[800],
+        unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
       ),
     );

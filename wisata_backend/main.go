@@ -17,7 +17,8 @@ func main() {
         &models.ProyekPerjalanan{}, 
         &models.ArmadaBus{}, 
         &models.Peserta{},
-        &models.LogPresensi{}, 
+        &models.LogPresensi{},
+        &models.Rundown{}, 
     )
     if err != nil {
         panic("Gagal melakukan migrasi database: " + err.Error())
