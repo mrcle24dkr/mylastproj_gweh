@@ -131,8 +131,8 @@ class _MainNavigatorState extends State<MainNavigator> {
   int _selectedIndex = 0;
 
   late final List<Widget> _pages = [
-    QrPage(idPeserta: widget.idPeserta),
     const RundownPage(),
+    QrPage(idPeserta: widget.idPeserta),
     MapPage(idPeserta: widget.idPeserta),
     AkunPesertaPage(idPeserta: widget.idPeserta),
   ];

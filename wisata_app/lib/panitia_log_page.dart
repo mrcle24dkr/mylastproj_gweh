@@ -11,10 +11,10 @@ class PanitiaLogPage extends StatefulWidget {
 }
 
 class _PanitiaLogPageState extends State<PanitiaLogPage> {
+  // _logs akan menyimpan SEMUA data dari database
   List<dynamic> _logs = [];
   bool _isLoading = true;
   
-  // ---> TAMBAHAN: Variabel untuk Sesi Presensi <---
   String _sesiAktif = "Pemberangkatan Awal"; 
   final List<String> _daftarSesi = [
     "Pemberangkatan Awal",
@@ -24,6 +24,15 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
     "Perjalanan Pulang"
   ];
 
+  // ---> REVISI PENTING: Membuat fungsi filter dinamis <---
+  // Fungsi ini hanya akan mengembalikan log yang nama_sesi-nya cocok dengan Dropdown
+  List<dynamic> get _filteredLogs {
+    return _logs.where((log) {
+      final namaSesi = log['nama_sesi'] ?? 'Pemberangkatan Awal';
+      return namaSesi == _sesiAktif;
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -31,7 +40,6 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
     _fetchLogs();
   }
 
-  // ---> TAMBAHAN: Ambil Sesi Aktif dari Server <---
   Future<void> _fetchSesiAktif() async {
     try {
       final url = Uri.parse('http://116.193.190.121:8080/api/panitia/sesi');
@@ -46,7 +54,6 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
     }
   }
 
-  // ---> TAMBAHAN: Ubah Sesi Aktif di Server <---
   Future<void> _ubahSesiAktif(String sesiBaru) async {
     try {
       final url = Uri.parse('http://116.193.190.121:8080/api/panitia/sesi');
@@ -58,6 +65,7 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
       
       if (response.statusCode == 200 && mounted) {
         setState(() => _sesiAktif = sesiBaru);
+        // Saat setState dipanggil, UI akan otomatis merender ulang menggunakan _filteredLogs yang baru
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sesi diubah ke: $sesiBaru"), backgroundColor: Colors.blue));
       }
     } catch (e) {
@@ -137,7 +145,6 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // HEADER SESUAI GAMBAR
           Padding(
             padding: const EdgeInsets.only(left: 20, right: 10, top: 20, bottom: 5),
             child: Row(
@@ -146,7 +153,8 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
                 const Text("Log Presensi Server", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                 Row(
                   children: [
-                    Text("Total: ${_logs.length}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                    // ---> REVISI: Angka Total sekarang membaca list yang sudah difilter <---
+                    Text("Total: ${_filteredLogs.length}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                     IconButton(icon: const Icon(Icons.refresh, color: Colors.blue), onPressed: _fetchLogs)
                   ],
                 )
@@ -154,7 +162,6 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
             ),
           ),
           
-          // ---> TAMBAHAN: KARTU PENGATURAN SESI <---
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
@@ -194,13 +201,13 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Colors.blue))
-                : _logs.isEmpty
-                    ? const Center(child: Text("Belum ada data presensi", style: TextStyle(color: Colors.grey)))
+                // ---> REVISI: Render list UI menggunakan _filteredLogs <---
+                : _filteredLogs.isEmpty
+                    ? Center(child: Text("Belum ada data presensi untuk sesi $_sesiAktif", style: const TextStyle(color: Colors.grey)))
                     : ListView.builder(
-                        itemCount: _logs.length,
+                        itemCount: _filteredLogs.length,
                         itemBuilder: (context, index) {
-                          final data = _logs[index];
-                          // ---> REVISI: Tarik data sesi dari backend <---
+                          final data = _filteredLogs[index];
                           final namaSesi = data['nama_sesi'] ?? 'Pemberangkatan Awal';
                           
                           return Card(
@@ -222,7 +229,6 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
                                   children: [
                                     Text(_formatWaktuLengkap(data['waktu'] ?? ''), style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold, fontSize: 13)),
                                     const SizedBox(height: 4),
-                                    // ---> REVISI: Tampilkan Lencana Sesi <---
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(8)),
@@ -233,7 +239,7 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
                               ),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => _hapusLog(data['id_peserta'].toString()), // Bisa disesuaikan jadi ID log auto-increment jika ada
+                                onPressed: () => _hapusLog(data['id_peserta'].toString()), 
                               ),
                             ),
                           );
