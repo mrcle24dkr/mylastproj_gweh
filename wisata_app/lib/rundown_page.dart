@@ -56,12 +56,12 @@ class _RundownPageState extends State<RundownPage> {
                   itemBuilder: (context, index) {
                     final data = _rundownList[index];
                     final bool isLast = index == _rundownList.length - 1;
+                    final bool perluPresensi = data['perlu_presensi'] ?? false;
 
                     return IntrinsicHeight(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // UI Garis Timeline
                           SizedBox(
                             width: 30,
                             child: Column(
@@ -76,13 +76,16 @@ class _RundownPageState extends State<RundownPage> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          // Card Konten
                           Expanded(
                             child: Padding(
                               padding: const EdgeInsets.only(bottom: 20),
                               child: Container(
                                 padding: const EdgeInsets.all(15),
-                                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+                                decoration: BoxDecoration(
+                                  color: perluPresensi ? Colors.blue.shade50 : Colors.grey.shade100, 
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: perluPresensi ? Border.all(color: Colors.blue.shade200) : null,
+                                ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -96,7 +99,22 @@ class _RundownPageState extends State<RundownPage> {
                                         const SizedBox(width: 4),
                                         Expanded(child: Text(data['lokasi'] ?? '', style: const TextStyle(color: Colors.grey))),
                                       ],
-                                    )
+                                    ),
+                                    // ---> TAMBAHAN BADGE PRESENSI <---
+                                    if (perluPresensi)
+                                      Container(
+                                        margin: const EdgeInsets.only(top: 8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.qr_code_scanner, color: Colors.white, size: 12),
+                                            SizedBox(width: 4),
+                                            Text("Siapkan Tiket QR", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                          ],
+                                        ),
+                                      )
                                   ],
                                 ),
                               ),

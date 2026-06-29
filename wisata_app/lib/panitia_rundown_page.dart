@@ -60,45 +60,71 @@ class _PanitiaRundownPageState extends State<PanitiaRundownPage> {
     final waktuCtrl = TextEditingController(text: isEdit ? dataEdit['waktu'] : '');
     final kegiatanCtrl = TextEditingController(text: isEdit ? dataEdit['kegiatan'] : '');
     final lokasiCtrl = TextEditingController(text: isEdit ? dataEdit['lokasi'] : '');
+    
+    // ---> VARIABEL UNTUK TOGGLE PRESENSI <---
+    bool _isPerluPresensi = isEdit ? (dataEdit['perlu_presensi'] ?? false) : false;
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text(isEdit ? "Edit Jadwal" : "Tambah Jadwal"),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: waktuCtrl, decoration: const InputDecoration(labelText: "Waktu (Misal: 07:00 - 08:00)")),
-                TextField(controller: kegiatanCtrl, decoration: const InputDecoration(labelText: "Nama Kegiatan")),
-                TextField(controller: lokasiCtrl, decoration: const InputDecoration(labelText: "Lokasi")),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                setState(() => _isLoading = true);
-                
-                final payload = json.encode({
-                  "waktu": waktuCtrl.text,
-                  "kegiatan": kegiatanCtrl.text,
-                  "lokasi": lokasiCtrl.text
-                });
+        // Gunakan StatefulBuilder agar Switch bisa berubah saat ditekan di dalam Dialog
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: Text(isEdit ? "Edit Jadwal" : "Tambah Jadwal"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(controller: waktuCtrl, decoration: const InputDecoration(labelText: "Waktu (Misal: 07:00 - 08:00)")),
+                    TextField(controller: kegiatanCtrl, decoration: const InputDecoration(labelText: "Nama Kegiatan")),
+                    TextField(controller: lokasiCtrl, decoration: const InputDecoration(labelText: "Lokasi")),
+                    const SizedBox(height: 15),
+                    
+                    // ---> TAMBAHAN: TOGGLE SWITCH PRESENSI <---
+                    Container(
+                      decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+                      child: SwitchListTile(
+                        title: const Text("Perlu Absen/Scan QR?", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: const Text("Kegiatan ini akan otomatis masuk ke menu Log Presensi", style: TextStyle(fontSize: 12)),
+                        value: _isPerluPresensi,
+                        activeColor: Colors.blue,
+                        onChanged: (bool value) {
+                          setStateDialog(() {
+                            _isPerluPresensi = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    setState(() => _isLoading = true);
+                    
+                    final payload = json.encode({
+                      "waktu": waktuCtrl.text,
+                      "kegiatan": kegiatanCtrl.text,
+                      "lokasi": lokasiCtrl.text,
+                      "perlu_presensi": _isPerluPresensi // ---> TAMBAHAN PAYLOAD
+                    });
 
-                if (isEdit) {
-                  await http.put(Uri.parse('http://116.193.190.121:8080/api/panitia/rundown/${dataEdit['id']}'), headers: {"Content-Type": "application/json"}, body: payload);
-                } else {
-                  await http.post(Uri.parse('http://116.193.190.121:8080/api/panitia/rundown'), headers: {"Content-Type": "application/json"}, body: payload);
-                }
-                _fetchRundown();
-              },
-              child: const Text("Simpan"),
-            ),
-          ],
+                    if (isEdit) {
+                      await http.put(Uri.parse('http://116.193.190.121:8080/api/panitia/rundown/${dataEdit['id']}'), headers: {"Content-Type": "application/json"}, body: payload);
+                    } else {
+                      await http.post(Uri.parse('http://116.193.190.121:8080/api/panitia/rundown'), headers: {"Content-Type": "application/json"}, body: payload);
+                    }
+                    _fetchRundown();
+                  },
+                  child: const Text("Simpan"),
+                ),
+              ],
+            );
+          }
         );
       }
     );
@@ -129,12 +155,12 @@ class _PanitiaRundownPageState extends State<PanitiaRundownPage> {
                   itemBuilder: (context, index) {
                     final data = _rundownList[index];
                     final bool isLast = index == _rundownList.length - 1;
+                    final bool perluPresensi = data['perlu_presensi'] ?? false;
 
                     return IntrinsicHeight(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // UI Garis Timeline
                           SizedBox(
                             width: 30,
                             child: Column(
@@ -149,13 +175,16 @@ class _PanitiaRundownPageState extends State<PanitiaRundownPage> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          // Card Konten
                           Expanded(
                             child: Padding(
                               padding: const EdgeInsets.only(bottom: 20),
                               child: Container(
                                 padding: const EdgeInsets.all(15),
-                                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+                                decoration: BoxDecoration(
+                                  color: perluPresensi ? Colors.blue.shade50 : Colors.grey.shade100, 
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: perluPresensi ? Border.all(color: Colors.blue.shade200) : null,
+                                ),
                                 child: Row(
                                   children: [
                                     Expanded(
@@ -172,7 +201,22 @@ class _PanitiaRundownPageState extends State<PanitiaRundownPage> {
                                               const SizedBox(width: 4),
                                               Expanded(child: Text(data['lokasi'] ?? '', style: const TextStyle(color: Colors.grey))),
                                             ],
-                                          )
+                                          ),
+                                          // ---> TAMBAHAN BADGE PRESENSI <---
+                                          if (perluPresensi)
+                                            Container(
+                                              margin: const EdgeInsets.only(top: 8),
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.qr_code_scanner, color: Colors.white, size: 12),
+                                                  SizedBox(width: 4),
+                                                  Text("Wajib Scan Presensi", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                                ],
+                                              ),
+                                            )
                                         ],
                                       ),
                                     ),

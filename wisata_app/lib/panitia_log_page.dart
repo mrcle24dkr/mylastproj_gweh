@@ -16,30 +16,55 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
   List<dynamic> _masterPeserta = []; // Menyimpan semua peserta terdaftar
   bool _isLoading = true;
   
-  String _sesiAktif = "Pemberangkatan Awal"; 
-  final List<String> _daftarSesi = [
-    "Pemberangkatan Awal",
-    "Makan Siang",
-    "Kunjungan Industri",
-    "Check-in Hotel",
-    "Perjalanan Pulang"
-  ];
+  String _sesiAktif = "Belum Ada Jadwal Presensi"; 
+  
+  // ---> REVISI: Daftar sesi tidak lagi hardcode, akan diisi dari API Rundown <---
+  List<String> _daftarSesi = ["Belum Ada Jadwal Presensi"];
 
-  // ---> VARIABEL UNTUK FILTER & SORTING <---
-  String _filterStatus = 'Semua'; // Opsi: Semua, Sudah Absen, Belum Absen
-  String _sortBy = 'Waktu Terbaru'; // Opsi: Waktu Terbaru, Nama (A-Z), Nama (Z-A)
+  // VARIABEL UNTUK FILTER & SORTING
+  String _filterStatus = 'Semua'; 
+  String _sortBy = 'Waktu Terbaru'; 
 
   @override
   void initState() {
     super.initState();
-    _inisialisasiData();
+    _muatDataAwal();
   }
 
-  Future<void> _inisialisasiData() async {
+  Future<void> _muatDataAwal() async {
     setState(() => _isLoading = true);
+    await _fetchDaftarSesiRundown(); // ---> Panggil API Rundown terlebih dahulu
     await _fetchSesiAktif();
     await _fetchMasterPeserta();
     await _fetchLogs();
+  }
+
+  // ---> FITUR BARU: Ambil daftar sesi dari Rundown API <---
+  Future<void> _fetchDaftarSesiRundown() async {
+    try {
+      final url = Uri.parse('http://116.193.190.121:8080/api/rundown');
+      final response = await http.get(url);
+      if (response.statusCode == 200 && mounted) {
+        final List<dynamic> data = json.decode(response.body)['data'] ?? [];
+        
+        // Filter hanya kegiatan yang perlu_presensi == true
+        List<String> sesiDariRundown = data
+            .where((item) => item['perlu_presensi'] == true)
+            .map((item) => item['kegiatan'].toString())
+            .toList();
+
+        setState(() {
+          if (sesiDariRundown.isNotEmpty) {
+            _daftarSesi = sesiDariRundown;
+          } else {
+            _daftarSesi = ["Belum Ada Jadwal Presensi"];
+            _sesiAktif = "Belum Ada Jadwal Presensi";
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Gagal menarik daftar sesi rundown: $e");
+    }
   }
 
   Future<void> _fetchSesiAktif() async {
@@ -47,8 +72,16 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
       final url = Uri.parse('http://116.193.190.121:8080/api/panitia/sesi');
       final response = await http.get(url);
       if (response.statusCode == 200 && mounted) {
+        String sesiDariServer = json.decode(response.body)['sesi'] ?? "Pemberangkatan Awal";
+        
         setState(() {
-          _sesiAktif = json.decode(response.body)['sesi'] ?? "Pemberangkatan Awal";
+          // Validasi: Jika sesi dari server ternyata tidak ada di jadwal rundown saat ini,
+          // kembalikan ke jadwal pertama yang ada di list, atau biarkan kosong.
+          if (!_daftarSesi.contains(sesiDariServer)) {
+            _sesiAktif = _daftarSesi.isNotEmpty ? _daftarSesi.first : "Belum Ada Jadwal Presensi";
+          } else {
+            _sesiAktif = sesiDariServer;
+          }
         });
       }
     } catch (e) {
@@ -87,6 +120,9 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
   }
 
   Future<void> _ubahSesiAktif(String sesiBaru) async {
+    // Jika tidak ada jadwal presensi, batalkan fungsi
+    if (sesiBaru == "Belum Ada Jadwal Presensi") return;
+
     try {
       final url = Uri.parse('http://116.193.190.121:8080/api/panitia/sesi');
       final response = await http.put(
@@ -105,8 +141,12 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
     }
   }
 
-  // ---> FITUR BARU: FUNGSI PRESENSI MANUAL OLEH PANITIA <---
   Future<void> _presensiManual(String idPeserta, String nama) async {
+    if (_sesiAktif == "Belum Ada Jadwal Presensi") {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Buat jadwal presensi terlebih dahulu di menu Rundown!"), backgroundColor: Colors.orange));
+      return;
+    }
+
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -138,7 +178,7 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Berhasil melakukan presensi manual untuk $nama!"), backgroundColor: Colors.green)
         );
-        _inisialisasiData(); // Refresh dan kalkulasi ulang data gabungan secara berkala
+        _muatDataAwal(); 
       } else {
         final errorMsg = json.decode(response.body)['message'] ?? "Gagal memproses";
         ScaffoldMessenger.of(context).showSnackBar(
@@ -173,7 +213,7 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
       
       if (mounted && response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Absen dibatalkan!"), backgroundColor: Colors.orange));
-        _inisialisasiData(); 
+        _muatDataAwal(); 
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Terjadi kesalahan jaringan"), backgroundColor: Colors.red));
@@ -200,9 +240,8 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
       String idPeserta = peserta['IDPeserta'].toString();
       String namaLengkap = peserta['NamaLengkap'] ?? 'Unknown';
       
-      // Cari apakah ID ini ada di data _logs untuk sesi yang sedang aktif
       var logAktif = _logs.cast<Map<String, dynamic>>().firstWhere(
-        (log) => log['id_peserta'] == idPeserta && (log['nama_sesi'] ?? 'Pemberangkatan Awal') == _sesiAktif,
+        (log) => log['id_peserta'] == idPeserta && (log['nama_sesi'] ?? '') == _sesiAktif,
         orElse: () => <String, dynamic>{},
       );
 
@@ -260,7 +299,7 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
                 Row(
                   children: [
                     Text("Total: ${dataTampil.length}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                    IconButton(icon: const Icon(Icons.refresh, color: Colors.blue), onPressed: _inisialisasiData)
+                    IconButton(icon: const Icon(Icons.refresh, color: Colors.blue), onPressed: _muatDataAwal)
                   ],
                 )
               ],
@@ -384,14 +423,14 @@ class _PanitiaLogPageState extends State<PanitiaLogPage> {
                                     },
                                   ),
                                   
-                                  // ---> LOGIKA TOMBOL BERDASARKAN STATUS ABSENSI <---
-                                  if (!isHadir) // Muncul tombol Presensi Manual kalau belum absen
+                                  // LOGIKA TOMBOL BERDASARKAN STATUS ABSENSI
+                                  if (!isHadir) 
                                     IconButton(
                                       icon: const Icon(Icons.check_box_outlined, color: Colors.green),
                                       tooltip: "Presensi Manual",
                                       onPressed: () => _presensiManual(data['id_peserta'], data['nama']),
                                     ),
-                                  if (isHadir) // Muncul tombol Delete/Batalkan kalau sudah absen
+                                  if (isHadir) 
                                     IconButton(
                                       icon: const Icon(Icons.delete_outline, color: Colors.red),
                                       tooltip: "Batalkan Absen",
