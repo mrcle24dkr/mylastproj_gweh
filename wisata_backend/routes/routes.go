@@ -44,5 +44,8 @@ func SetupRoutes(r *gin.Engine) {
 		api.POST("/panitia/rundown", controllers.TambahRundown)
 		api.PUT("/panitia/rundown/:id", controllers.EditRundown)
 		api.DELETE("/panitia/rundown/:id", controllers.HapusRundown)
+
+        // ... di dalam api := r.Group("/api")
+        api.GET("/proyek", controllers.GetProyek)
     }
 }

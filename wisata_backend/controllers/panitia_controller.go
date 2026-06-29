@@ -43,6 +43,7 @@ type InputDataPeserta struct {
     Alergi         string `json:"alergi"`
     KontakDarurat  string `json:"kontak_darurat"`
     IDBus          *uint  `json:"id_bus"` // ---> TAMBAHAN: Menangkap ID Bus
+    IDProyek       *uint  `json:"id_proyek"`
 }
 
 // ---> TAMBAHAN: Fungsi Generator Kode Rahasia (Secret Key) untuk QR Code <---
@@ -183,4 +184,14 @@ func HapusPeserta(c *gin.Context) {
         "status":  "sukses",
         "message": "Peserta berhasil dihapus!",
     })
+}
+
+// Fungsi untuk mengambil daftar Proyek Perjalanan
+func GetProyek(c *gin.Context) {
+    var proyek []models.ProyekPerjalanan
+    if err := config.DB.Find(&proyek).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal memuat proyek"})
+        return
+    }
+    c.JSON(http.StatusOK, gin.H{"status": "success", "data": proyek})
 }
